@@ -1,0 +1,20 @@
+[
+  {
+    "filename": "green-ledger-1.1.3-qa-unsigned.hap",
+    "bytes": 893100,
+    "sha256": "53296e5bc9eaf763e3f293812c7b6a759d24a1a6bd96851c89c3767683435ca4",
+    "bundleName": "com.lvtancunzhe.qa",
+    "version": "1.1.3",
+    "mode": "release",
+    "signed": false
+  },
+  {
+    "filename": "green-ledger-1.1.3-unsigned.hap",
+    "bytes": 893098,
+    "sha256": "2066c7cf0bd18ed5a49e5d65abc0c6302976dbfe856530cefaa58b46468f5b69",
+    "bundleName": "com.lvtancunzhe.app",
+    "version": "1.1.3",
+    "mode": "release",
+    "signed": false
+  }
+]

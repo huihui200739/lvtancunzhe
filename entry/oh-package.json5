@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "绿碳存折主模块：存折、录入、凭证、计划、看板、科普、我的",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {}
+}

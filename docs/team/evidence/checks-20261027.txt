@@ -1,0 +1,146 @@
+2026-10-27 / app 1.1.3 / schema 2
+Service regression using SDK compiler:
+
+> green-ledger-service-checks@1.1.3 test
+> node scripts/verify-all.cjs
+
+PASS CO2 汇总隔离 CO2e；净值、负向和计数准确
+PASS 切换 CO2e 同步分桶与分类，不串口径
+PASS 类别和日期筛选独立生效，负值保留
+PASS 空区间正常返回零
+PASS 未显式选口径时仍不跨口径相加
+PASS 分类 CSV 包含两种口径与各自小计
+PASS 期间 CSV 两种口径都导出，无静默丢记录
+PASS 载客换算数值与冻结输入一致
+PASS 净增排保留负号
+PASS 正式仓库排除所有测试条目
+PASS 正式模式强制拦截未核验因子
+PASS 非法日期和部分数字不会被静默接受
+PASS 12 regression checks
+PASS 开发与正式数据库及备份互相隔离；旧备份仅开发可读
+PASS 正式四类均有来源条目且全部排除 TEST 因子
+PASS 限定因子不确认或不填写依据时不能入账
+PASS 汽油按质量核算，步行按公里输入，凭证保存真实行动数量
+PASS 苹果采购与废纸再生场景复算，CO2e/CO2 分开
+PASS 写快照失败则记录、积分全部回滚
+PASS 新建正式记录冻结快照和积分；可读取凭证
+PASS 任务只关联日期、类别和实际行动匹配的记录；重复点击不重复发奖
+PASS 修订保留两版记录与快照，并同步计划实际贡献
+PASS 计划同步失败会连同修订和积分一起回滚
+PASS 撤销最新版本同时退回任务、冲正参与与减排积分；重试幂等
+PASS 修订日期不再匹配计划时自动解除关联并回退参与奖
+PASS 纯参与任务不产生减排记录；完成/撤销都防重复发奖
+PASS 未来参与任务拒绝提前完成，失败写任务回滚奖励
+PASS 不同气体口径分别取整积分，不能合并质量凑整分
+PASS 正式备份复算通过；伪造环境、因子、单位、角色、NaN、结果均拒绝
+PASS 恢复前快照写入失败，拒绝替换当前数据
+PASS 计划重排计入已完成任务的预算与频次，保留任务身份
+PASS 显式 CO2e 目标不累计 CO2，非法约束被拒绝
+PASS 备份损坏行与缺失版本快照不会抛出异常或进入恢复
+PASS 恢复保留事件，不重放积分，计划元数据指向导入的最新计划
+PASS 兑换按 requestId 幂等；重复提交只扣一次且不再重复写事件
+PASS 余额不足与负余额暂停兑换都拒绝并说明原因
+PASS 兑换扣分或写记录失败回滚，重试可成功；历史价格版本不随调价改变
+PASS 科普图示依赖的因子全部存在于正式库且为正（T04 Figures 数据契约）
+PASS 空口径冲正事件的明细文案不含空标点残留（T03 观察项②）
+PASS 证书由兑换派生：编号稳定、声明明确，撤销/恢复不删除历史
+PASS 科普示例保留因子身份、气体与单位，汽油不能显示为CO2e
+PASS 科普示例拒绝无效数量，不生成伪造的零值图示
+PASS 29 hardening checks
+PASS 日期滚动、选择顺序与内部排除不制造表单修改，比较不改变原数据
+PASS 真实目标/偏好修改可识别，改回原值后恢复为未修改
+PASS 同一计划更新不覆盖草稿，恢复不同计划或不同条件需重新加载表单
+PASS 超出本周的已选日期保留可见，非法预算不会伪装成已保存的零预算
+PASS 4 plan UI state checks
+PASS 同时入账两笔均完成且积分按累计减排结算
+PASS 余额40并发兑换两份30分奖励，只允许一份成功
+PASS 记录写入失败的回滚不吞掉排队中的兑换
+PASS 后发兑换读取前笔入账完成后的余额
+PASS 同一版本同时修订，后发请求识别版本已更新
+PASS 同时完成参与任务均执行且不重复奖励
+PASS 并发导出不读取入账一半的记录和快照
+PASS 入账与恢复同时发起，恢复前快照包含完整入账且无队列死锁
+PASS 8 concurrency checks
+PASS 关联草稿日期、类别、情景不匹配或任务已完成时入账前拒绝
+PASS 队列遇到抛错仍释放后续任务，保持进入顺序
+PASS CSV超过1000条明细与5000条积分仍全量导出
+PASS 超过300条积分后余额和旧凭证仍含历史事件
+PASS 超过200条记录后存折数据源包含旧记录，不截断累计量
+PASS 首页、统计与导出对十进制半分位采用一致显示舍入
+PASS 6 full audit checks
+PASS all 59 service regression checks (isolated fixtures; no native UI acceptance implied)
+
+Service regression using npm compiler:
+
+> green-ledger-service-checks@1.1.3 test
+> node scripts/verify-all.cjs
+
+PASS CO2 汇总隔离 CO2e；净值、负向和计数准确
+PASS 切换 CO2e 同步分桶与分类，不串口径
+PASS 类别和日期筛选独立生效，负值保留
+PASS 空区间正常返回零
+PASS 未显式选口径时仍不跨口径相加
+PASS 分类 CSV 包含两种口径与各自小计
+PASS 期间 CSV 两种口径都导出，无静默丢记录
+PASS 载客换算数值与冻结输入一致
+PASS 净增排保留负号
+PASS 正式仓库排除所有测试条目
+PASS 正式模式强制拦截未核验因子
+PASS 非法日期和部分数字不会被静默接受
+PASS 12 regression checks
+PASS 开发与正式数据库及备份互相隔离；旧备份仅开发可读
+PASS 正式四类均有来源条目且全部排除 TEST 因子
+PASS 限定因子不确认或不填写依据时不能入账
+PASS 汽油按质量核算，步行按公里输入，凭证保存真实行动数量
+PASS 苹果采购与废纸再生场景复算，CO2e/CO2 分开
+PASS 写快照失败则记录、积分全部回滚
+PASS 新建正式记录冻结快照和积分；可读取凭证
+PASS 任务只关联日期、类别和实际行动匹配的记录；重复点击不重复发奖
+PASS 修订保留两版记录与快照，并同步计划实际贡献
+PASS 计划同步失败会连同修订和积分一起回滚
+PASS 撤销最新版本同时退回任务、冲正参与与减排积分；重试幂等
+PASS 修订日期不再匹配计划时自动解除关联并回退参与奖
+PASS 纯参与任务不产生减排记录；完成/撤销都防重复发奖
+PASS 未来参与任务拒绝提前完成，失败写任务回滚奖励
+PASS 不同气体口径分别取整积分，不能合并质量凑整分
+PASS 正式备份复算通过；伪造环境、因子、单位、角色、NaN、结果均拒绝
+PASS 恢复前快照写入失败，拒绝替换当前数据
+PASS 计划重排计入已完成任务的预算与频次，保留任务身份
+PASS 显式 CO2e 目标不累计 CO2，非法约束被拒绝
+PASS 备份损坏行与缺失版本快照不会抛出异常或进入恢复
+PASS 恢复保留事件，不重放积分，计划元数据指向导入的最新计划
+PASS 兑换按 requestId 幂等；重复提交只扣一次且不再重复写事件
+PASS 余额不足与负余额暂停兑换都拒绝并说明原因
+PASS 兑换扣分或写记录失败回滚，重试可成功；历史价格版本不随调价改变
+PASS 科普图示依赖的因子全部存在于正式库且为正（T04 Figures 数据契约）
+PASS 空口径冲正事件的明细文案不含空标点残留（T03 观察项②）
+PASS 证书由兑换派生：编号稳定、声明明确，撤销/恢复不删除历史
+PASS 科普示例保留因子身份、气体与单位，汽油不能显示为CO2e
+PASS 科普示例拒绝无效数量，不生成伪造的零值图示
+PASS 29 hardening checks
+PASS 日期滚动、选择顺序与内部排除不制造表单修改，比较不改变原数据
+PASS 真实目标/偏好修改可识别，改回原值后恢复为未修改
+PASS 同一计划更新不覆盖草稿，恢复不同计划或不同条件需重新加载表单
+PASS 超出本周的已选日期保留可见，非法预算不会伪装成已保存的零预算
+PASS 4 plan UI state checks
+PASS 同时入账两笔均完成且积分按累计减排结算
+PASS 余额40并发兑换两份30分奖励，只允许一份成功
+PASS 记录写入失败的回滚不吞掉排队中的兑换
+PASS 后发兑换读取前笔入账完成后的余额
+PASS 同一版本同时修订，后发请求识别版本已更新
+PASS 同时完成参与任务均执行且不重复奖励
+PASS 并发导出不读取入账一半的记录和快照
+PASS 入账与恢复同时发起，恢复前快照包含完整入账且无队列死锁
+PASS 8 concurrency checks
+PASS 关联草稿日期、类别、情景不匹配或任务已完成时入账前拒绝
+PASS 队列遇到抛错仍释放后续任务，保持进入顺序
+PASS CSV超过1000条明细与5000条积分仍全量导出
+PASS 超过300条积分后余额和旧凭证仍含历史事件
+PASS 超过200条记录后存折数据源包含旧记录，不截断累计量
+PASS 首页、统计与导出对十进制半分位采用一致显示舍入
+PASS 6 full audit checks
+PASS all 59 service regression checks (isolated fixtures; no native UI acceptance implied)
+
+Release builds:
+build-release.log: BUILD SUCCESSFUL; unsigned; API24
+build-qa.log: BUILD SUCCESSFUL; unsigned; API24

@@ -1,0 +1,28 @@
+name: 成员试用反馈
+description: 记录可复现问题或界面卡点
+title: '[试用反馈] '
+body:
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      description: App版本、正式/QA包、设备/模拟器、API版本
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 期望结果与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图与出现频率
+      description: 不要上传含个人信息的数据库、账号或通知截图。

@@ -1,0 +1,10 @@
+{
+  "modelVersion": "5.0.0",
+  "description": "绿碳存折 · 面向校园生活的可追溯碳账本与个性化减排助手",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.21",
+    "@ohos/hamock": "1.0.0"
+  }
+}

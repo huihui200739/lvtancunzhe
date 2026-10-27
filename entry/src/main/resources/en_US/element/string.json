@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "main module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Green Carbon Passbook"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Green Carbon Passbook"
+    }
+  ]
+}

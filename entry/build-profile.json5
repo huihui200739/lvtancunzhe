@@ -1,0 +1,41 @@
+{
+  "apiType": "stageMode",
+  "buildOption": {
+    "resOptions": {
+      "copyCodeResource": {
+        "enable": false
+      }
+    },
+    "arkOptions": {
+      "buildProfileFields": {
+        "DEV_FACTOR_MODE": "true"
+      }
+    }
+  },
+  "buildOptionSet": [
+    {
+      "name": "release",
+      "arkOptions": {
+        "buildProfileFields": {
+          "DEV_FACTOR_MODE": "false"
+        },
+        "obfuscation": {
+          "ruleOptions": {
+            "enable": false,
+            "files": [
+              "./obfuscation-rules.txt"
+            ]
+          }
+        }
+      }
+    },
+  ],
+  "targets": [
+    {
+      "name": "default"
+    },
+    {
+      "name": "ohosTest",
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+# Build outputs and machine settings
+node_modules/
+oh_modules/
+local.properties
+.idea/
+.hvigor/
+**/build/
+.cxx/
+.clangd/
+.appanalyzer/
+**/.test/
+.DS_Store
+*.log
+*.tsbuildinfo
+# Device data, backups and signing material
+signature/
+*.p12
+*.pfx
+*.p7b
+*.keystore
+*.jks
+*.pem
+*.key
+.env
+.env.*
+*.db
+*.db-*
+*.sqlite*
+*.hap
+*.hsp
+*.app
+*.zip
+*.tar.gz
+# Local audit history is preserved on disk; only curated team docs are published.
+/docs/*
+!/docs/team/
