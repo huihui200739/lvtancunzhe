@@ -1,9 +1,11 @@
 {
-  "commit": "6a3bf5fc1c4f7e12e3df907052c763ab75686ccf",
   "npmCi": true,
   "regressionCount": 59,
   "publishGate": true,
   "releaseBuild": true,
   "date": "2026-10-27",
-  "environment": "macOS; OpenHarmony API24 SDK; npm service compiler"
+  "environment": "macOS; OpenHarmony API24 SDK; npm service compiler",
+  "validatedSourceFiles": 126,
+  "validatedSourceSha256": "71ca6da1222255ae2af5beece02ec2f0fe2f38a48fa4cf610682380608ad57fb",
+  "scope": "Application, build and test source files match the validated clean clone; documentation and inactive CI template may differ."
 }
