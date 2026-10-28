@@ -14,6 +14,19 @@
             "useNormalizedOHMUrl": true
           }
         }
+      },
+      {
+        "name": "api26",
+        "compileSdkVersion": "26.0.0",
+        "compatibleSdkVersion": 12,
+        "targetSdkVersion": "26.0.0",
+        "runtimeOS": "OpenHarmony",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
       }
     ],
     "buildModeSet": [
@@ -33,7 +46,8 @@
         {
           "name": "default",
           "applyToProducts": [
-            "default"
+            "default",
+            "api26"
           ]
         }
       ]

@@ -10,12 +10,14 @@
 | 制作 PPT、找图和统一口径 | [PPT 交接](docs/team/PPT交接.md) |
 | 看功能、架构、限制和已知问题 | [项目说明](docs/team/项目说明.md) |
 | 看验收结果及复现证据 | [验收记录](docs/team/验收记录.md) |
+| 使用 API 26 构建和查看适配进度 | [API 26 适配记录](docs/team/API26适配记录.md) |
 | 查看因子依据与实际适用范围 | [来源与边界](docs/team/来源与边界.md) |
 | 协作修改、反馈问题 | [CONTRIBUTING](CONTRIBUTING.md) |
 
 ## 环境
 
-- DevEco Studio；工程使用 OpenHarmony SDK **API 24** 编译，兼容配置 API 12。**实际原生验收环境是 API 24 手机模拟器**，并不代表所有 API 12+ 设备都已验证。
+- 默认构建使用 OpenHarmony SDK **API 24**；也可使用 DevEco Studio 26 和 **API 26.0.0** 构建 `api26` 产品。最低兼容配置为 API 12，但不代表所有 API 12+ 设备都已验证。
+- API 26 已完成 release 编译和手机模拟器基础流程验证，其他场景及物理真机仍待验证，详见适配记录。
 - 手机模拟器是已验证的运行方式。物理设备需要相应 SDK、调试与签名配置。
 - 纯业务回归用 Node.js 18+；预留的CI模板使用 Node.js 22。
 - 克隆到英文路径，例如 `D:\Projects\lvtancunzhe` 或 `~/Projects/lvtancunzhe`，避免构建工具对非 ASCII 工程路径的限制。
@@ -41,6 +43,18 @@ bash scripts/setup-sdk.sh
 ```
 
 Windows 请按[成员指南](docs/team/试用指南.md)使用 DevEco 终端。不要复制其他人的 `local.properties` 或签名配置。
+
+使用 API 26 时，安装 DevEco Studio 26 和配套 SDK，在 DevEco 中选择 `api26` 产品构建；macOS 命令行可执行：
+
+```sh
+export DEVECO_HOME="/path/to/DevEco-Studio-26.app/Contents"
+export OPENHARMONY_SDK_HOME="$HOME/Library/OpenHarmony/Sdk"
+export GREEN_BUILD_PRODUCT=api26
+bash scripts/setup-sdk.sh
+./build.sh prod
+```
+
+`local.properties` 里的 `sdk.dir` 应与所选 SDK 根目录一致；不要复制别人的本机路径。API 26 构建输出位于 `entry/build/api26/outputs/default/`，不是此前发布的 API 24 试用包。
 
 构建产物：`entry/build/default/outputs/default/entry-default-unsigned.hap`。这是 **HAP，不是 Android APK**。是否能够安装未签名包取决于调试环境；本项目只验证过指定模拟器。常规设备需自行按 DevEco 配置签名。
 
