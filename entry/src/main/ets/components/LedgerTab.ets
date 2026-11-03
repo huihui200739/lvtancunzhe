@@ -20,6 +20,7 @@ import { NumUtil } from '../common/Format';
 export struct LedgerTab {
   @Prop @Watch('onTick') tick: number = 0;
   @Prop active: boolean = true;
+  @Link filterDay: string;
   @State selectedScope: string = 'kgCO₂';
   @State scopes: string[] = [];
   @State items: RecordListItem[] = [];
@@ -84,6 +85,14 @@ export struct LedgerTab {
     } catch (e) {
       this.message = `读取账本失败：${(e as Error).message}`;
     }
+  }
+
+  /** 按日期筛选后的记录（不改累计与积分，仅影响列表展示） */
+  private visibleItems(): RecordListItem[] {
+    if (this.filterDay.length === 0) {
+      return this.items;
+    }
+    return this.items.filter((item: RecordListItem) => item.record.occurredAt === this.filterDay);
   }
 
   private netTotal(): number {
@@ -154,16 +163,26 @@ export struct LedgerTab {
           this.categoryTile('recycling', '旧物再生', '仅限实际再生利用')
           this.categoryTile('food', '减少食物采购', '需要真实采购对照')
         }.width('100%').margin({ top: 10 })
+        if (this.filterDay.length > 0) {
+          Row({ space: 8 }) {
+            Text(`只看 ${this.filterDay} 的记录`).fontSize(12).fontColor(Theme.ink).layoutWeight(1)
+            Text('显示全部 ×').fontSize(12).fontColor(Theme.green).onClick(() => { this.filterDay = ''; })
+          }.width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 })
+            .backgroundColor(Theme.sage).borderRadius(Theme.controlRadius)
+          Text('上方累计数字与积分仍为全部有效记录；此处只筛列表。').fontSize(10).fontColor(Theme.muted).width('100%')
+        }
         if (this.suspended) { Notice({ text: `积分待补足 ${this.shortfall} 分，兑换暂时暂停。`, warning: true }).margin({ top: 16 }) }
         SectionHeading({ title: '最近记录', detail: '点击查看凭证' })
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
         if (this.items.length === 0) {
           EmptyState({ title: '还没有记录', detail: '记下一次真实行动，查看估算结果和对应依据。' })
+        } else if (this.visibleItems().length === 0) {
+          EmptyState({ title: `${this.filterDay} 没有记录`, detail: '可以点上方「显示全部 ×」回到完整列表。' })
         } else {
-          ForEach(this.items.slice(0, this.visibleCount), (item: RecordListItem) => { this.recordCard(item); },
+          ForEach(this.visibleItems().slice(0, this.visibleCount), (item: RecordListItem) => { this.recordCard(item); },
             (item: RecordListItem) => `${item.record.recordId}#${item.record.revision}#${item.record.status}`)
         }
-        if (this.items.length > this.visibleCount) {
+        if (this.filterDay.length === 0 && this.items.length > this.visibleCount) {
           Button(`继续查看 · 已显示 ${Math.min(this.visibleCount, this.items.length)} / ${this.items.length} 条`).fontSize(12).height(46).width('100%')
             .fontColor(Theme.green).backgroundColor(Theme.sage).onClick(() => { this.visibleCount += 50; })
         }

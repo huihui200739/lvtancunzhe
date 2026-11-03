@@ -35,6 +35,8 @@ struct NavItem {
 struct Index {
   @State tick: number = 0;
   @State activeTab: number = 0;
+  // 看板点选某天后，跳到存折并按该日筛选；清空即恢复全部
+  @State @Watch('onLedgerDayFilter') ledgerDayFilter: string = '';
   @State pageVisible: boolean = true;
   @State ready: boolean = false;
   @State bootMessage: string = '';
@@ -45,6 +47,14 @@ struct Index {
       else { this.bootMessage = res.message; }
     });
   }
+  onLedgerDayFilter(): void {
+    if (this.ledgerDayFilter.length > 0) {
+      this.activeTab = 0;
+      this.controller.changeIndex(0);
+      this.tick++;
+    }
+  }
+
   onPageShow(): void { this.pageVisible = true; this.tick++; }
   onPageHide(): void { this.pageVisible = false; }
   @Builder ledgerNav() { NavItem({ label: '存折', icon: 'leaf', currentTab: $activeTab, destinationIndex: 0 }) }
@@ -57,9 +67,9 @@ struct Index {
       if (this.ready) {
         DevelopmentBanner()
         Tabs({ barPosition: BarPosition.End, index: this.activeTab, controller: this.controller }) {
-          TabContent() { LedgerTab({ tick: this.tick, active: this.activeTab === 0 && this.pageVisible }) }.tabBar(this.ledgerNav)
+          TabContent() { LedgerTab({ tick: this.tick, active: this.activeTab === 0 && this.pageVisible, filterDay: $ledgerDayFilter }) }.tabBar(this.ledgerNav)
           TabContent() { PlanTab({ tick: this.tick }) }.tabBar(this.planNav)
-          TabContent() { DashboardTab({ tick: this.tick }) }.tabBar(this.chartNav)
+          TabContent() { DashboardTab({ tick: this.tick, ledgerDayFilter: $ledgerDayFilter }) }.tabBar(this.chartNav)
           TabContent() { KnowledgeTab({ tick: this.tick }) }.tabBar(this.bookNav)
           TabContent() { ProfileTab({ tick: $tick }) }.tabBar(this.userNav)
         }.barMode(BarMode.Fixed).barHeight(72).barBackgroundColor(Theme.bg)

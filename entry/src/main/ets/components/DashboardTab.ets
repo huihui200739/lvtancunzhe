@@ -71,6 +71,7 @@ export struct DashboardTab {
   @State message: string = '';
   @State selectedKey: string = '';
   @State selectedCategory: string = '';
+  @Link ledgerDayFilter: string;
 
   private dims: DimOption[] = [
     { key: 'day', label: '日' },
@@ -139,6 +140,7 @@ export struct DashboardTab {
       this.summary = summary;
       this.from = from; this.to = to; this.appliedLabel = label;
       this.selectedCategory = '';
+      this.selectedKey = this.lastBucketWithData();
       this.scopeKey = summary.gasScopes.indexOf(scope) >= 0 ? scope : (summary.gasScopes.length > 0 ? summary.gasScopes[0] : scope);
       this.appliedScope = this.scopeKey;
     } catch (e) {
@@ -217,6 +219,30 @@ export struct DashboardTab {
       }
     }
     return '';
+  }
+
+  /** 默认聚焦最后一个有记录的区间，便于直接看明细 */
+  private lastBucketWithData(): string {
+    const list = this.paddedBuckets();
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].count > 0) {
+        return list[i].key;
+      }
+    }
+    return '';
+  }
+
+  /** 日视图时，点明细直接跳到存折并筛选出当天记录 */
+  private jumpToSelectedDay(): void {
+    if (this.dimension() !== TimeDimension.DAY || this.selectedKey.length === 0) {
+      return;
+    }
+    for (const b of this.paddedBuckets()) {
+      if (b.key === this.selectedKey && b.count > 0) {
+        this.ledgerDayFilter = b.key;
+        return;
+      }
+    }
   }
 
   /** 逐格前后查看：在有数据的区间之间移动也会经过空区间，文案会说明“没有记录” */
@@ -337,13 +363,14 @@ export struct DashboardTab {
               .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
               .onClick(() => this.stepSelection(-1))
             Text(this.selectedDetail()).fontSize(11).lineHeight(18).fontColor(Theme.ink).layoutWeight(1)
+              .onClick(() => this.jumpToSelectedDay())
             Text('›').fontSize(18).fontColor(Theme.green).width(32).height(32).textAlign(TextAlign.Center)
               .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
               .onClick(() => this.stepSelection(1))
           }.width('100%').padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor(Theme.sage)
             .borderRadius(Theme.controlRadius).margin({ top: 8 })
         } else {
-          Text('点一下趋势图，可查看某一天的正向、增加排放与记录数').fontSize(10).fontColor(Theme.muted)
+          Text('用 ‹ › 逐日查看；当前区间没有记录时不会跳转').fontSize(10).fontColor(Theme.muted)
             .width('100%').margin({ top: 8 })
         }
         BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey }).margin({ top: 12 })

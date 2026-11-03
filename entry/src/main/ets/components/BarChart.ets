@@ -14,9 +14,6 @@ export struct BarChart {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
-  private touchWidth: number = 0;
-  private touchStartX: number = 0;
-  private touchStartY: number = 0;
 
   private populatedCount(): number {
     let count = 0;
@@ -53,20 +50,14 @@ export struct BarChart {
           Text('已记录 · 正向与增加排放均为 0').fontSize(12).fontColor(Theme.muted)
         }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else {
-        Stack() {
-          Canvas(this.ctx)
-            .width('100%')
-            .height(158)
-            .backgroundColor(Theme.paper)
-            .onReady(() => {
-              this.ready = true;
-              this.draw();
-            })
-          Row() {
-          }.width('100%').height(158).padding({ left: 12, right: 8 })
-            .onAreaChange((oldValue: Area, newValue: Area) => { this.touchWidth = Number(newValue.width); })
-            .onClick((event: ClickEvent) => { this.selectAt(Number(event.x)); })
-        }.width('100%').height(158)
+        Canvas(this.ctx)
+          .width('100%')
+          .height(158)
+          .backgroundColor(Theme.paper)
+          .onReady(() => {
+            this.ready = true;
+            this.draw();
+          })
       }
     }
     .width('100%')
@@ -81,19 +72,6 @@ export struct BarChart {
     if (this.ready) {
       this.draw();
     }
-  }
-
-  /** 按触点位置换算到最近的柱；拖动时连续更新 */
-  private selectAt(x: number): void {
-    if (this.data.length === 0 || this.touchWidth <= 24) {
-      return;
-    }
-    const inner = this.touchWidth - 20;
-    const cell = inner / this.data.length;
-    let index = Math.floor((x - 12) / cell);
-    if (index < 0) { index = 0; }
-    if (index > this.data.length - 1) { index = this.data.length - 1; }
-    this.selectedKey = this.data[index].key;
   }
 
   private indexOfSelected(): number {
@@ -221,6 +199,27 @@ export struct BarChart {
         ctx.fillStyle = Theme.rust;
         this.bar(cx - barW / 2, zeroY, barW, negH, false);
       }
+    }
+
+    // 选中列在柱顶标出净变化数值，配合上方明细条
+    if (selected >= 0 && this.data[selected].count > 0) {
+      const b = this.data[selected];
+      const label = `${b.netKg > 0 ? '+' : ''}${b.netKg.toFixed(2)}`;
+      ctx.font = `${this.getUIContext().vp2px(10)}px sans-serif`;
+      const textW = ctx.measureText(label).width;
+      const cx = padL + slot * selected + slot / 2;
+      const posH = plotH * (b.positiveKg / range);
+      const negH = plotH * (b.negativeKg / range);
+      let y = zeroY - posH - 8;
+      if (b.negativeKg > 0) {
+        y = zeroY + negH + 14;
+      }
+      if (y < padT + 10) { y = padT + 10; }
+      if (y > padT + plotH - 2) { y = padT + plotH - 2; }
+      ctx.fillStyle = Theme.ink;
+      ctx.textAlign = 'center';
+      ctx.fillText(label, Math.max(padL + textW / 2, Math.min(cx, padL + plotW - textW / 2)), y);
+      ctx.textAlign = 'left';
     }
 
     // 横轴标签：均匀取样并逐个做重叠检查

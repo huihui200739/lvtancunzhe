@@ -19,9 +19,6 @@ export struct LineChart {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
-  private touchWidth: number = 0;
-  private touchStartX: number = 0;
-  private touchStartY: number = 0;
 
   private populatedCount(): number {
     let count = 0;
@@ -58,20 +55,14 @@ export struct LineChart {
           Text('已记录 · 净变化为 0').fontSize(12).fontColor(Theme.muted)
         }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else {
-        Stack() {
-          Canvas(this.ctx)
-            .width('100%')
-            .height(158)
-            .backgroundColor(Theme.paper)
-            .onReady(() => {
-              this.ready = true;
-              this.draw();
-            })
-          Row() {
-          }.width('100%').height(158).padding({ left: 12, right: 8 })
-            .onAreaChange((oldValue: Area, newValue: Area) => { this.touchWidth = Number(newValue.width); })
-            .onClick((event: ClickEvent) => { this.selectAt(Number(event.x)); })
-        }.width('100%').height(158)
+        Canvas(this.ctx)
+          .width('100%')
+          .height(158)
+          .backgroundColor(Theme.paper)
+          .onReady(() => {
+            this.ready = true;
+            this.draw();
+          })
       }
     }
     .width('100%')
@@ -86,19 +77,6 @@ export struct LineChart {
     if (this.ready) {
       this.draw();
     }
-  }
-
-  /** 按触点位置换算到最近的时间桶；拖动时连续更新 */
-  private selectAt(x: number): void {
-    if (this.data.length === 0 || this.touchWidth <= 24) {
-      return;
-    }
-    const inner = this.touchWidth - 20;
-    const cell = inner / this.data.length;
-    let index = Math.floor((x - 12) / cell);
-    if (index < 0) { index = 0; }
-    if (index > this.data.length - 1) { index = this.data.length - 1; }
-    this.selectedKey = this.data[index].key;
   }
 
   private indexOfSelected(): number {
@@ -243,8 +221,11 @@ export struct LineChart {
         const label = this.data[selected].netKg.toFixed(2);
         ctx.font = `${this.getUIContext().vp2px(10)}px sans-serif`;
         const textW = ctx.measureText(label).width;
-        const labelY = sp.y - 12 < padT + 10 ? sp.y + 20 : sp.y - 12;
+        const labelY = sp.y - 12 < padT + 14 ? sp.y + 20 : sp.y - 12;
         const labelX = Math.max(padL, Math.min(sp.x - textW / 2, padL + plotW - textW));
+        // 纸色底衬，避免数值压住曲线看不清
+        ctx.fillStyle = Theme.paper;
+        ctx.fillRect(labelX - 3, labelY - 11, textW + 6, 15);
         ctx.fillStyle = Theme.ink;
         ctx.fillText(label, labelX, labelY);
       }
