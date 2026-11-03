@@ -71,7 +71,8 @@ export struct DashboardTab {
   @State message: string = '';
   @State selectedKey: string = '';
   @State selectedCategory: string = '';
-  @Link ledgerDayFilter: string;
+  @Link ledgerFrom: string;
+  @Link ledgerTo: string;
 
   private dims: DimOption[] = [
     { key: 'day', label: '日' },
@@ -232,17 +233,42 @@ export struct DashboardTab {
     return '';
   }
 
-  /** 日视图时，点明细直接跳到存折并筛选出当天记录 */
-  private jumpToSelectedDay(): void {
-    if (this.dimension() !== TimeDimension.DAY || this.selectedKey.length === 0) {
+  /** 点明细跳到存折，并按当前维度给出筛选区间 */
+  private jumpToSelectedRange(): void {
+    if (this.selectedKey.length === 0) {
       return;
     }
     for (const b of this.paddedBuckets()) {
-      if (b.key === this.selectedKey && b.count > 0) {
-        this.ledgerDayFilter = b.key;
-        return;
+      if (b.key !== this.selectedKey || b.count === 0) {
+        continue;
       }
+      const dim = this.dimension();
+      if (dim === TimeDimension.DAY) {
+        this.ledgerFrom = b.key;
+        this.ledgerTo = b.key;
+      } else if (dim === TimeDimension.WEEK) {
+        this.ledgerFrom = b.key;
+        this.ledgerTo = DateUtil.addDays(b.key, 6);
+      } else if (dim === TimeDimension.MONTH) {
+        this.ledgerFrom = `${b.key}-01`;
+        this.ledgerTo = `${b.key}-${this.daysInMonth(b.key)}`;
+      } else {
+        this.ledgerFrom = `${b.key}-01-01`;
+        this.ledgerTo = `${b.key}-12-31`;
+      }
+      return;
     }
+  }
+
+  private daysInMonth(monthKey: string): string {
+    const year = Number.parseInt(monthKey.substring(0, 4), 10);
+    const month = Number.parseInt(monthKey.substring(5, 7), 10);
+    const days: number[] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let last = days[month - 1];
+    if (month === 2 && (year % 4 === 0 && year % 100 !== 0 || year % 400 === 0)) {
+      last = 29;
+    }
+    return last < 10 ? `0${last}` : `${last}`;
   }
 
   /** 逐格前后查看：在有数据的区间之间移动也会经过空区间，文案会说明“没有记录” */
@@ -363,14 +389,14 @@ export struct DashboardTab {
               .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
               .onClick(() => this.stepSelection(-1))
             Text(this.selectedDetail()).fontSize(11).lineHeight(18).fontColor(Theme.ink).layoutWeight(1)
-              .onClick(() => this.jumpToSelectedDay())
+              .onClick(() => this.jumpToSelectedRange())
             Text('›').fontSize(18).fontColor(Theme.green).width(32).height(32).textAlign(TextAlign.Center)
               .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
               .onClick(() => this.stepSelection(1))
           }.width('100%').padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor(Theme.sage)
             .borderRadius(Theme.controlRadius).margin({ top: 8 })
         } else {
-          Text('用 ‹ › 逐日查看；当前区间没有记录时不会跳转').fontSize(10).fontColor(Theme.muted)
+          Text('用 ‹ › 逐格查看；点明细可跳到存折并按当前区间筛选').fontSize(10).fontColor(Theme.muted)
             .width('100%').margin({ top: 8 })
         }
         BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey }).margin({ top: 12 })

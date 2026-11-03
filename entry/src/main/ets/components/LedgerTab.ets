@@ -10,7 +10,7 @@ import { PointAccountView } from '../models/PointModels';
 import { categoryName, gasUnitLabel, RecordStatus } from '../common/Domain';
 import { Theme, categoryIcon } from '../common/Theme';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, BreathingPlant } from './DesignSystem';
-import { NumUtil } from '../common/Format';
+import { DateUtil, NumUtil } from '../common/Format';
 
 /**
  * 存折 Tab（第 3.2 节主链路）：积分余额、已记录行为列表、记一笔入口。
@@ -20,7 +20,8 @@ import { NumUtil } from '../common/Format';
 export struct LedgerTab {
   @Prop @Watch('onTick') tick: number = 0;
   @Prop active: boolean = true;
-  @Link filterDay: string;
+  @Link filterFrom: string;
+  @Link filterTo: string;
   @State selectedScope: string = 'kgCO₂';
   @State scopes: string[] = [];
   @State items: RecordListItem[] = [];
@@ -87,12 +88,63 @@ export struct LedgerTab {
     }
   }
 
-  /** 按日期筛选后的记录（不改累计与积分，仅影响列表展示） */
+  /** 按日期区间筛选后的记录（不改累计与积分，仅影响列表展示） */
   private visibleItems(): RecordListItem[] {
-    if (this.filterDay.length === 0) {
+    if (this.filterFrom.length === 0) {
       return this.items;
     }
-    return this.items.filter((item: RecordListItem) => item.record.occurredAt === this.filterDay);
+    return this.items.filter((item: RecordListItem) =>
+      item.record.occurredAt >= this.filterFrom && item.record.occurredAt <= this.filterTo);
+  }
+
+  private filterLabel(): string {
+    if (this.filterFrom === this.filterTo) {
+      return `只看 ${this.filterFrom} 的记录`;
+    }
+    return `只看 ${this.filterFrom} 至 ${this.filterTo} 的记录`;
+  }
+
+  /** 按当前筛选跨度移动一天 / 一周 / 一月 / 一年 */
+  private shiftFilter(delta: number): void {
+    if (this.filterFrom.length === 0) {
+      return;
+    }
+    const from = this.filterFrom;
+    const to = this.filterTo;
+    if (from === to) {
+      this.filterFrom = DateUtil.addDays(from, delta);
+      this.filterTo = this.filterFrom;
+      return;
+    }
+    if (from.endsWith('-01-01') && to.endsWith('-12-31')) {
+      const year = Number.parseInt(from.substring(0, 4), 10) + delta;
+      this.filterFrom = `${year}-01-01`;
+      this.filterTo = `${year}-12-31`;
+      return;
+    }
+    if (from.endsWith('-01') && to.substring(0, 7) === from.substring(0, 7)) {
+      let year = Number.parseInt(from.substring(0, 4), 10);
+      let month = Number.parseInt(from.substring(5, 7), 10) + delta;
+      while (month > 12) { month = month - 12; year = year + 1; }
+      while (month < 1) { month = month + 12; year = year - 1; }
+      const key = `${year}-${month < 10 ? '0' : ''}${month}`;
+      this.filterFrom = `${key}-01`;
+      this.filterTo = `${key}-${this.lastDay(key)}`;
+      return;
+    }
+    this.filterFrom = DateUtil.addDays(from, delta * 7);
+    this.filterTo = DateUtil.addDays(to, delta * 7);
+  }
+
+  private lastDay(monthKey: string): string {
+    const year = Number.parseInt(monthKey.substring(0, 4), 10);
+    const month = Number.parseInt(monthKey.substring(5, 7), 10);
+    const days: number[] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let last = days[month - 1];
+    if (month === 2 && (year % 4 === 0 && year % 100 !== 0 || year % 400 === 0)) {
+      last = 29;
+    }
+    return last < 10 ? `0${last}` : `${last}`;
   }
 
   private netTotal(): number {
@@ -163,11 +215,15 @@ export struct LedgerTab {
           this.categoryTile('recycling', '旧物再生', '仅限实际再生利用')
           this.categoryTile('food', '减少食物采购', '需要真实采购对照')
         }.width('100%').margin({ top: 10 })
-        if (this.filterDay.length > 0) {
+        if (this.filterFrom.length > 0) {
           Row({ space: 8 }) {
-            Text(`只看 ${this.filterDay} 的记录`).fontSize(12).fontColor(Theme.ink).layoutWeight(1)
-            Text('显示全部 ×').fontSize(12).fontColor(Theme.green).onClick(() => { this.filterDay = ''; })
-          }.width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 })
+            Text('‹').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
+              .onClick(() => this.shiftFilter(-1))
+            Text(this.filterLabel()).fontSize(12).fontColor(Theme.ink).layoutWeight(1)
+            Text('›').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
+              .onClick(() => this.shiftFilter(1))
+            Text('显示全部 ×').fontSize(12).fontColor(Theme.green).onClick(() => { this.filterFrom = ''; this.filterTo = ''; })
+          }.width('100%').padding({ left: 8, right: 12, top: 8, bottom: 8 })
             .backgroundColor(Theme.sage).borderRadius(Theme.controlRadius)
           Text('上方累计数字与积分仍为全部有效记录；此处只筛列表。').fontSize(10).fontColor(Theme.muted).width('100%')
         }
@@ -177,12 +233,12 @@ export struct LedgerTab {
         if (this.items.length === 0) {
           EmptyState({ title: '还没有记录', detail: '记下一次真实行动，查看估算结果和对应依据。' })
         } else if (this.visibleItems().length === 0) {
-          EmptyState({ title: `${this.filterDay} 没有记录`, detail: '可以点上方「显示全部 ×」回到完整列表。' })
+          EmptyState({ title: '这段时间没有记录', detail: '可以用 ‹ › 换区间，或点「显示全部 ×」回到完整列表。' })
         } else {
           ForEach(this.visibleItems().slice(0, this.visibleCount), (item: RecordListItem) => { this.recordCard(item); },
             (item: RecordListItem) => `${item.record.recordId}#${item.record.revision}#${item.record.status}`)
         }
-        if (this.filterDay.length === 0 && this.items.length > this.visibleCount) {
+        if (this.filterFrom.length === 0 && this.items.length > this.visibleCount) {
           Button(`继续查看 · 已显示 ${Math.min(this.visibleCount, this.items.length)} / ${this.items.length} 条`).fontSize(12).height(46).width('100%')
             .fontColor(Theme.green).backgroundColor(Theme.sage).onClick(() => { this.visibleCount += 50; })
         }
