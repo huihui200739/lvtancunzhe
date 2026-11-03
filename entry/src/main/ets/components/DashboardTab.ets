@@ -208,10 +208,41 @@ export struct DashboardTab {
     }
     for (const b of this.paddedBuckets()) {
       if (b.key === this.selectedKey) {
+        if (b.count === 0) {
+          return `${b.label} · ${this.periodWord()}没有记录`;
+        }
         return `${b.label} · 净变化 ${NumUtil.signed(b.netKg, 2)} · 正向 ${NumUtil.show(b.positiveKg)} / 增加 ${NumUtil.show(b.negativeKg)} · ${b.count} 条记录`;
       }
     }
     return '';
+  }
+
+  /** 逐格前后查看：在有数据的区间之间移动也会经过空区间，文案会说明“没有记录” */
+  private stepSelection(delta: number): void {
+    const list = this.paddedBuckets();
+    if (list.length === 0) {
+      return;
+    }
+    let index = -1;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].key === this.selectedKey) { index = i; }
+    }
+    if (index < 0) {
+      index = list.length - 1;
+    }
+    let next = index + delta;
+    if (next < 0) { next = 0; }
+    if (next > list.length - 1) { next = list.length - 1; }
+    this.selectedKey = list[next].key;
+  }
+
+  /** 空区间的说法随维度变化 */
+  private periodWord(): string {
+    const dim = this.dimension();
+    if (dim === TimeDimension.DAY) { return '当天'; }
+    if (dim === TimeDimension.WEEK) { return '该周'; }
+    if (dim === TimeDimension.MONTH) { return '该月'; }
+    return '该年';
   }
 
   private catLabel(key: string): string {
@@ -299,8 +330,15 @@ export struct DashboardTab {
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
         LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey })
         if (this.selectedDetail().length > 0) {
-          Text(this.selectedDetail()).fontSize(11).lineHeight(18).fontColor(Theme.ink).width('100%')
-            .padding({ left: 12, right: 12, top: 8, bottom: 8 }).backgroundColor(Theme.sage)
+          Row({ space: 8 }) {
+            Text('‹').fontSize(18).fontColor(Theme.green).width(32).height(32).textAlign(TextAlign.Center)
+              .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
+              .onClick(() => this.stepSelection(-1))
+            Text(this.selectedDetail()).fontSize(11).lineHeight(18).fontColor(Theme.ink).layoutWeight(1)
+            Text('›').fontSize(18).fontColor(Theme.green).width(32).height(32).textAlign(TextAlign.Center)
+              .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
+              .onClick(() => this.stepSelection(1))
+          }.width('100%').padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor(Theme.sage)
             .borderRadius(Theme.controlRadius).margin({ top: 8 })
         } else {
           Text('点一下趋势图，可查看某一天的正向、增加排放与记录数').fontSize(10).fontColor(Theme.muted)

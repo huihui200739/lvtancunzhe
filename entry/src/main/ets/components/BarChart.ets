@@ -14,6 +14,9 @@ export struct BarChart {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
+  private touchWidth: number = 0;
+  private touchStartX: number = 0;
+  private touchStartY: number = 0;
 
   private populatedCount(): number {
     let count = 0;
@@ -60,11 +63,9 @@ export struct BarChart {
               this.draw();
             })
           Row() {
-            ForEach(this.data, (b: StatBucket) => {
-              Column().layoutWeight(1).height('100%')
-                .onClick(() => { this.selectedKey = b.key; })
-            }, (b: StatBucket) => b.key)
           }.width('100%').height(158).padding({ left: 12, right: 8 })
+            .onAreaChange((oldValue: Area, newValue: Area) => { this.touchWidth = Number(newValue.width); })
+            .onClick((event: ClickEvent) => { this.selectAt(Number(event.x)); })
         }.width('100%').height(158)
       }
     }
@@ -80,6 +81,19 @@ export struct BarChart {
     if (this.ready) {
       this.draw();
     }
+  }
+
+  /** 按触点位置换算到最近的柱；拖动时连续更新 */
+  private selectAt(x: number): void {
+    if (this.data.length === 0 || this.touchWidth <= 24) {
+      return;
+    }
+    const inner = this.touchWidth - 20;
+    const cell = inner / this.data.length;
+    let index = Math.floor((x - 12) / cell);
+    if (index < 0) { index = 0; }
+    if (index > this.data.length - 1) { index = this.data.length - 1; }
+    this.selectedKey = this.data[index].key;
   }
 
   private indexOfSelected(): number {
