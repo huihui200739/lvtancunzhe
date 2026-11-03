@@ -260,6 +260,18 @@ export struct DashboardTab {
     }
   }
 
+  /** 最近有记录的若干个区间，作为周/月/年视图的快捷入口 */
+  private recentWithData(limit: number): StatBucket[] {
+    const list = this.paddedBuckets();
+    const out: StatBucket[] = [];
+    for (let i = list.length - 1; i >= 0 && out.length < limit; i--) {
+      if (list[i].count > 0) {
+        out.unshift(list[i]);
+      }
+    }
+    return out;
+  }
+
   private daysInMonth(monthKey: string): string {
     const year = Number.parseInt(monthKey.substring(0, 4), 10);
     const month = Number.parseInt(monthKey.substring(5, 7), 10);
@@ -383,6 +395,19 @@ export struct DashboardTab {
         if (this.loading) { Notice({ text: '正在更新统计，下方显示上次查询结果。' }) }
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
         LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey })
+        if (this.dimension() !== TimeDimension.DAY && this.recentWithData(3).length > 0) {
+          Flex({ wrap: FlexWrap.Wrap }) {
+            ForEach(this.recentWithData(3), (b: StatBucket) => {
+              Text(b.label).fontSize(11)
+                .fontColor(this.selectedKey === b.key ? Theme.paper : Theme.green)
+                .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                .backgroundColor(this.selectedKey === b.key ? Theme.green : Theme.sage)
+                .borderRadius(Theme.controlRadius)
+                .margin({ right: 8, bottom: 8 })
+                .onClick(() => { this.selectedKey = b.key; this.jumpToSelectedRange(); })
+            }, (b: StatBucket) => b.key)
+          }.width('100%').margin({ top: 4 })
+        }
         if (this.selectedDetail().length > 0) {
           Row({ space: 8 }) {
             Text('‹').fontSize(18).fontColor(Theme.green).width(32).height(32).textAlign(TextAlign.Center)

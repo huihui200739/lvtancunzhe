@@ -14,6 +14,8 @@ export struct PieChart {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
+  private canvasW: number = 0;
+  private canvasH: number = 0;
 
   // 多类别时按“深绿 → 沙色 → 浅绿”分配，相邻段对比更清楚
   private static readonly COLORS: string[] = ['#1F4436', '#4C7560', '#8CA98F', '#C2B08C', '#D5DEC4'];
@@ -53,6 +55,11 @@ export struct PieChart {
           .width('100%')
           .height(168)
           .backgroundColor(Theme.paper)
+          .onAreaChange((oldValue: Area, newValue: Area) => {
+            this.canvasW = Number(newValue.width);
+            this.canvasH = Number(newValue.height);
+          })
+          .onClick((event: ClickEvent) => { this.handleTap(Number(event.x), Number(event.y)); })
           .onReady(() => {
             this.ready = true;
             this.draw();
@@ -84,6 +91,44 @@ export struct PieChart {
     .backgroundColor(Theme.paper)
     .border({ width: 1, color: Theme.line })
     .borderRadius(Theme.cardRadius)
+  }
+
+  /** 画布内点扇区：命中环带则选中/取消，点中心或环外取消 */
+  private handleTap(x: number, y: number): void {
+    if (this.canvasW <= 0 || this.canvasH <= 0) {
+      return;
+    }
+    const dx = x - this.canvasW / 2;
+    const dy = y - this.canvasH / 2;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const half = Math.min(this.canvasW, this.canvasH) / 2;
+    const outer = half - 20;
+    const inner = outer - 22;
+    if (dist < inner - 8 || dist > outer + 8) {
+      this.selectedCategory = '';
+      return;
+    }
+    let angle = Math.atan2(dx, -dy);
+    if (angle < 0) {
+      angle = angle + Math.PI * 2;
+    }
+    const total = this.positiveTotal();
+    if (total <= 0) {
+      return;
+    }
+    let start = 0;
+    for (const c of this.data) {
+      if (c.positiveKg <= 0) {
+        continue;
+      }
+      const span = (c.positiveKg / total) * Math.PI * 2;
+      if (angle >= start && angle < start + span) {
+        const key = `${c.category}`;
+        this.selectedCategory = this.selectedCategory === key ? '' : key;
+        return;
+      }
+      start = start + span;
+    }
   }
 
   private isSelected(c: CategoryStat): boolean {

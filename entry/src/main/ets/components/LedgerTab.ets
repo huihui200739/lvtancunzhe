@@ -104,6 +104,50 @@ export struct LedgerTab {
     return `只看 ${this.filterFrom} 至 ${this.filterTo} 的记录`;
   }
 
+  /** 当前筛选跨度：day / week / month / year */
+  private filterUnit(): string {
+    if (this.filterFrom === this.filterTo) {
+      return 'day';
+    }
+    if (this.filterFrom.endsWith('-01-01') && this.filterTo.endsWith('-12-31')) {
+      return 'year';
+    }
+    if (this.filterFrom.endsWith('-01') && this.filterTo.substring(0, 7) === this.filterFrom.substring(0, 7)) {
+      return 'month';
+    }
+    return 'week';
+  }
+
+  /** 直接跳到最近一条记录所在的区间，保留当前跨度 */
+  private jumpToLatestRecord(): void {
+    let latest = '';
+    for (const item of this.items) {
+      if (item.record.occurredAt > latest) {
+        latest = item.record.occurredAt;
+      }
+    }
+    if (latest.length === 0) {
+      return;
+    }
+    const unit = this.filterUnit();
+    if (unit === 'year') {
+      const year = latest.substring(0, 4);
+      this.filterFrom = `${year}-01-01`;
+      this.filterTo = `${year}-12-31`;
+    } else if (unit === 'month') {
+      const key = latest.substring(0, 7);
+      this.filterFrom = `${key}-01`;
+      this.filterTo = `${key}-${this.lastDay(key)}`;
+    } else if (unit === 'week') {
+      const weekStart = DateUtil.weekStart(latest);
+      this.filterFrom = weekStart;
+      this.filterTo = DateUtil.addDays(weekStart, 6);
+    } else {
+      this.filterFrom = latest;
+      this.filterTo = latest;
+    }
+  }
+
   /** 按当前筛选跨度移动一天 / 一周 / 一月 / 一年 */
   private shiftFilter(delta: number): void {
     if (this.filterFrom.length === 0) {
@@ -216,14 +260,25 @@ export struct LedgerTab {
           this.categoryTile('food', '减少食物采购', '需要真实采购对照')
         }.width('100%').margin({ top: 10 })
         if (this.filterFrom.length > 0) {
-          Row({ space: 8 }) {
-            Text('‹').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
-              .onClick(() => this.shiftFilter(-1))
-            Text(this.filterLabel()).fontSize(12).fontColor(Theme.ink).layoutWeight(1)
-            Text('›').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
-              .onClick(() => this.shiftFilter(1))
-            Text('显示全部 ×').fontSize(12).fontColor(Theme.green).onClick(() => { this.filterFrom = ''; this.filterTo = ''; })
-          }.width('100%').padding({ left: 8, right: 12, top: 8, bottom: 8 })
+          Column({ space: 6 }) {
+            Row({ space: 6 }) {
+              Text('‹').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
+                .onClick(() => this.shiftFilter(-1))
+              Text(this.filterLabel()).fontSize(12).fontColor(Theme.ink).layoutWeight(1).maxLines(2)
+              Text('›').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
+                .onClick(() => this.shiftFilter(1))
+            }.width('100%')
+            Row() {
+              Text('最近记录').fontSize(11).fontColor(Theme.green)
+                .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
+                .onClick(() => this.jumpToLatestRecord())
+              Blank()
+              Text('显示全部 ×').fontSize(11).fontColor(Theme.green)
+                .padding({ left: 6, right: 6, top: 6, bottom: 6 })
+                .onClick(() => { this.filterFrom = ''; this.filterTo = ''; })
+            }.width('100%')
+          }.width('100%').padding({ left: 10, right: 10, top: 8, bottom: 8 })
             .backgroundColor(Theme.sage).borderRadius(Theme.controlRadius)
           Text('上方累计数字与积分仍为全部有效记录；此处只筛列表。').fontSize(10).fontColor(Theme.muted).width('100%')
         }
