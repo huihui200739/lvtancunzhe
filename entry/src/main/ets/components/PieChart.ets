@@ -14,7 +14,8 @@ export struct PieChart {
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
 
-  private static readonly COLORS: string[] = ['#244E40', '#5B8068', '#8AA37E', '#B6C6A4', '#D5DEC4'];
+  // 多类别时按“深绿 → 沙色 → 浅绿”分配，相邻段对比更清楚
+  private static readonly COLORS: string[] = ['#1F4436', '#4C7560', '#8CA98F', '#C2B08C', '#D5DEC4'];
 
   private positiveCategoryCount(): number {
     let count = 0;

@@ -69,6 +69,7 @@ export struct DashboardTab {
   private reloadVersion: number = 0;
   @State summary: StatsSummary = emptySummary();
   @State message: string = '';
+  @State selectedKey: string = '';
 
   private dims: DimOption[] = [
     { key: 'day', label: '日' },
@@ -150,27 +151,67 @@ export struct DashboardTab {
    * 缺日按 0 显示，避免一个点或断开的折线。其他维度沿用服务端分桶。
    */
   private paddedBuckets(): StatBucket[] {
-    if (this.dimension() !== TimeDimension.DAY) {
-      return this.summary.buckets;
-    }
     const existing: Map<string, StatBucket> = new Map<string, StatBucket>();
     for (const b of this.summary.buckets) {
       existing.set(b.key, b);
     }
     const out: StatBucket[] = [];
-    let day = this.from;
-    let guard = 0;
-    while (day <= this.to && guard < 400) {
-      const found = existing.get(day);
-      if (found !== undefined) {
-        out.push(found);
-      } else {
-        out.push({ key: day, label: day.substring(5), positiveKg: 0, negativeKg: 0, netKg: 0, count: 0 });
+    const dim = this.dimension();
+    if (dim === TimeDimension.DAY) {
+      let day = this.from;
+      while (day <= this.to && out.length < 400) {
+        out.push(this.bucketOrZero(existing, day, day.substring(5)));
+        day = DateUtil.addDays(day, 1);
       }
-      day = DateUtil.addDays(day, 1);
-      guard++;
+    } else if (dim === TimeDimension.WEEK) {
+      let week = DateUtil.weekStart(this.from);
+      const last = DateUtil.weekStart(this.to);
+      while (week <= last && out.length < 120) {
+        out.push(this.bucketOrZero(existing, week, `${week.substring(5)} 起`));
+        week = DateUtil.addDays(week, 7);
+      }
+    } else if (dim === TimeDimension.MONTH) {
+      let year = Number.parseInt(this.from.substring(0, 4), 10);
+      let month = Number.parseInt(this.from.substring(5, 7), 10);
+      const endKey = DateUtil.monthKey(this.to);
+      while (out.length < 120) {
+        const key = `${year}-${month < 10 ? '0' : ''}${month}`;
+        if (key > endKey) { break; }
+        out.push(this.bucketOrZero(existing, key, key));
+        month++;
+        if (month > 12) { month = 1; year++; }
+      }
+    } else {
+      let year = Number.parseInt(DateUtil.yearKey(this.from), 10);
+      const endYear = Number.parseInt(DateUtil.yearKey(this.to), 10);
+      while (year <= endYear && out.length < 60) {
+        const key = `${year}`;
+        out.push(this.bucketOrZero(existing, key, `${key}年`));
+        year++;
+      }
     }
     return out.length > 0 ? out : this.summary.buckets;
+  }
+
+  private bucketOrZero(existing: Map<string, StatBucket>, key: string, label: string): StatBucket {
+    const found = existing.get(key);
+    if (found !== undefined) {
+      return found;
+    }
+    return { key: key, label: label, positiveKg: 0, negativeKg: 0, netKg: 0, count: 0 };
+  }
+
+  /** 点选图表后的单日/单周明细；未选中时返回空串 */
+  private selectedDetail(): string {
+    if (this.selectedKey.length === 0) {
+      return '';
+    }
+    for (const b of this.paddedBuckets()) {
+      if (b.key === this.selectedKey) {
+        return `${b.label} · 净变化 ${NumUtil.signed(b.netKg, 2)} · 正向 ${NumUtil.show(b.positiveKg)} / 增加 ${NumUtil.show(b.negativeKg)} · ${b.count} 条记录`;
+      }
+    }
+    return '';
   }
 
   private catLabel(key: string): string {
@@ -256,8 +297,16 @@ export struct DashboardTab {
         }
         if (this.loading) { Notice({ text: '正在更新统计，下方显示上次查询结果。' }) }
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
-        LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets() })
-        BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets() }).margin({ top: 12 })
+        LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey })
+        if (this.selectedDetail().length > 0) {
+          Text(this.selectedDetail()).fontSize(11).lineHeight(18).fontColor(Theme.ink).width('100%')
+            .padding({ left: 12, right: 12, top: 8, bottom: 8 }).backgroundColor(Theme.sage)
+            .borderRadius(Theme.controlRadius).margin({ top: 8 })
+        } else {
+          Text('点一下趋势图，可查看某一天的正向、增加排放与记录数').fontSize(10).fontColor(Theme.muted)
+            .width('100%').margin({ top: 8 })
+        }
+        BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey }).margin({ top: 12 })
         PieChart({ title: '各类行动的正向贡献', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.categories }).margin({ top: 12 })
         Text('正值为相对基准的减排贡献，负值为增加排放。仅统计已记录的有效行为，不代表完整个人碳足迹。')
           .fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%').margin({ top: 24, bottom: 30 })

@@ -15,6 +15,7 @@ export struct LineChart {
   @Prop title: string = '';
   @Prop unit: string = 'kgCO₂';
   @Prop @Watch('onData') data: StatBucket[] = [];
+  @Link @Watch('onSelect') selectedKey: string;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
@@ -54,14 +55,22 @@ export struct LineChart {
           Text('已记录 · 净变化为 0').fontSize(12).fontColor(Theme.muted)
         }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else {
-        Canvas(this.ctx)
-          .width('100%')
-          .height(158)
-          .backgroundColor(Theme.paper)
-          .onReady(() => {
-            this.ready = true;
-            this.draw();
-          })
+        Stack() {
+          Canvas(this.ctx)
+            .width('100%')
+            .height(158)
+            .backgroundColor(Theme.paper)
+            .onReady(() => {
+              this.ready = true;
+              this.draw();
+            })
+          Row() {
+            ForEach(this.data, (b: StatBucket) => {
+              Column().layoutWeight(1).height('100%')
+                .onClick(() => { this.selectedKey = b.key; })
+            }, (b: StatBucket) => b.key)
+          }.width('100%').height(158).padding({ left: 12, right: 8 })
+        }.width('100%').height(158)
       }
     }
     .width('100%')
@@ -71,7 +80,25 @@ export struct LineChart {
     .borderRadius(Theme.cardRadius)
   }
 
-  // Canvas 只在 onReady 绘制一次；数据随后到达时需主动重绘
+  // Canvas 只在 onReady 绘制一次；数据或选中项变化时主动重绘
+  private onSelect(): void {
+    if (this.ready) {
+      this.draw();
+    }
+  }
+
+  private indexOfSelected(): number {
+    if (this.selectedKey.length === 0) {
+      return -1;
+    }
+    for (let i = 0; i < this.data.length; i++) {
+      if (this.data[i].key === this.selectedKey) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   private onData(): void {
     if (this.populatedCount() === 0 || this.allNetZero()) {
       this.ready = false;
@@ -182,6 +209,23 @@ export struct LineChart {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.stroke();
+
+    // 选中项：竖向发丝线 + 空心环，帮助定位某一天
+    const selected = this.indexOfSelected();
+    if (selected >= 0 && selected < points.length) {
+      const sp = points[selected];
+      ctx.strokeStyle = '#B9C8B6';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sp.x, padT);
+      ctx.lineTo(sp.x, padT + plotH);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 6, 0, Math.PI * 2);
+      ctx.strokeStyle = Theme.green;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
 
     // 数据点只标有记录的日期：点代表真实记录，空白天不画点
     let lastCounted = -1;

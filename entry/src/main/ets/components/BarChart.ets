@@ -10,6 +10,7 @@ export struct BarChart {
   @Prop title: string = '';
   @Prop unit: string = 'kgCO₂';
   @Prop @Watch('onData') data: StatBucket[] = [];
+  @Link @Watch('onSelect') selectedKey: string;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
@@ -49,14 +50,22 @@ export struct BarChart {
           Text('已记录 · 正向与增加排放均为 0').fontSize(12).fontColor(Theme.muted)
         }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else {
-        Canvas(this.ctx)
-          .width('100%')
-          .height(158)
-          .backgroundColor(Theme.paper)
-          .onReady(() => {
-            this.ready = true;
-            this.draw();
-          })
+        Stack() {
+          Canvas(this.ctx)
+            .width('100%')
+            .height(158)
+            .backgroundColor(Theme.paper)
+            .onReady(() => {
+              this.ready = true;
+              this.draw();
+            })
+          Row() {
+            ForEach(this.data, (b: StatBucket) => {
+              Column().layoutWeight(1).height('100%')
+                .onClick(() => { this.selectedKey = b.key; })
+            }, (b: StatBucket) => b.key)
+          }.width('100%').height(158).padding({ left: 12, right: 8 })
+        }.width('100%').height(158)
       }
     }
     .width('100%')
@@ -66,7 +75,25 @@ export struct BarChart {
     .borderRadius(Theme.cardRadius)
   }
 
-  // Canvas 只在 onReady 绘制一次；数据随后到达时需主动重绘
+  // Canvas 只在 onReady 绘制一次；数据或选中项变化时主动重绘
+  private onSelect(): void {
+    if (this.ready) {
+      this.draw();
+    }
+  }
+
+  private indexOfSelected(): number {
+    if (this.selectedKey.length === 0) {
+      return -1;
+    }
+    for (let i = 0; i < this.data.length; i++) {
+      if (this.data[i].key === this.selectedKey) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   private onData(): void {
     if (this.populatedCount() === 0 || this.allContributionsZero()) {
       this.ready = false;
@@ -153,6 +180,20 @@ export struct BarChart {
 
     const slot = plotW / n;
     const barW = Math.max(6, Math.min(18, slot * 0.42));
+    // 选中列加一层极淡底，点击后像账本里圈的格子
+    const selected = this.indexOfSelected();
+    if (selected >= 0) {
+      ctx.fillStyle = '#F5F7F1';
+      ctx.fillRect(padL + slot * selected, padT, slot, plotH);
+      ctx.strokeStyle = '#CBD5C6';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL + slot * selected, padT);
+      ctx.lineTo(padL + slot * selected, padT + plotH);
+      ctx.moveTo(padL + slot * (selected + 1), padT);
+      ctx.lineTo(padL + slot * (selected + 1), padT + plotH);
+      ctx.stroke();
+    }
     for (let i = 0; i < n; i++) {
       const cx = padL + slot * i + slot / 2;
       const b = this.data[i];
