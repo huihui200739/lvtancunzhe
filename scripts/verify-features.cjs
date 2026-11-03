@@ -83,6 +83,10 @@ const voucher=(over={})=>({
   assert.equal(AiCoachService.describeNetworkError('Connection refused'),'连接被拒绝，请检查接口地址与端口');
   assert.match(AiCoachService.describeNetworkError('weird failure'),/网络不可用（weird failure）/);
  });
+ await check('模型列表地址由 chat completions 推导',()=>{
+  assert.equal(AiCoachService.modelsEndpoint('https://www.sub-coco.org/v1/chat/completions'),'https://www.sub-coco.org/v1/models');
+  assert.equal(AiCoachService.modelsEndpoint('https://relay.example.com/models'),'https://relay.example.com/models');
+ });
  await check('中转站根地址自动补全为 chat completions',()=>{
   assert.equal(AiConfigStore.effectiveEndpoint('https://www.sub-coco.org'),'https://www.sub-coco.org/v1/chat/completions');
   assert.equal(AiConfigStore.effectiveEndpoint('https://relay.example.com/'),'https://relay.example.com/v1/chat/completions');

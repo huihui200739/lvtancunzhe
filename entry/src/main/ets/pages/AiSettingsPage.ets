@@ -22,6 +22,8 @@ struct AiSettingsPage {
   @State message: string = '';
   @State passed: boolean = false;
   @State resultTitle: string = '';
+  @State modelOptions: string[] = [];
+  @State modelsLoading: boolean = false;
 
   aboutToAppear(): void {
     AiConfigStore.load(this.context()).then((config: AiConfig) => {
@@ -73,6 +75,28 @@ struct AiSettingsPage {
     }
   }
 
+  private async loadModels(): Promise<void> {
+    if (this.modelsLoading) {
+      return;
+    }
+    this.modelsLoading = true;
+    this.message = '';
+    try {
+      const res = await AiCoachService.listModels(this.draft());
+      if (!res.ok || res.data === null) {
+        this.passed = false;
+        this.message = res.message;
+        return;
+      }
+      this.modelOptions = res.data;
+      this.passed = true;
+      this.resultTitle = '已读取模型列表';
+      this.message = `共 ${res.data.length} 个可用模型，点一下即可填入。`;
+    } finally {
+      this.modelsLoading = false;
+    }
+  }
+
   private async test(): Promise<void> {
     if (this.busy) { return; }
     this.busy = true;
@@ -84,6 +108,12 @@ struct AiSettingsPage {
       this.passed = res.ok;
       this.resultTitle = res.ok ? '连通成功' : '连通失败';
       this.message = res.ok ? `模型返回：${res.data}` : res.message;
+      if (res.ok) {
+        const models = await AiCoachService.listModels(this.draft());
+        if (models.ok && models.data !== null) {
+          this.modelOptions = models.data;
+        }
+      }
     } finally {
       this.busy = false;
     }
@@ -121,9 +151,29 @@ struct AiSettingsPage {
             TextInput({ text: this.endpointText, placeholder: 'https://中转站根地址 或 .../v1/chat/completions' }).fontSize(13).height(48).backgroundColor(Theme.bg)
               .onChange((v: string) => { this.endpointText = v; })
             Text('可直接填中转站根地址，保存与请求时会自动补 /v1/chat/completions').fontSize(11).fontColor(Theme.muted).width('100%')
-            Text('模型名称').fontSize(12).fontColor(Theme.muted).width('100%')
+            Row() {
+              Text('模型名称').fontSize(12).fontColor(Theme.muted).layoutWeight(1)
+              Text(this.modelsLoading ? '读取中…' : '读取可用模型').fontSize(11).fontColor(Theme.green)
+                .onClick(() => this.loadModels())
+            }.width('100%')
             TextInput({ text: this.modelText }).fontSize(13).height(48).backgroundColor(Theme.bg)
               .onChange((v: string) => { this.modelText = v; })
+            Button(this.modelsLoading ? '正在读取可用模型…' : '读取可用模型').height(40).fontSize(12).width('100%')
+              .fontColor(Theme.green).backgroundColor(Theme.sage).enabled(!this.modelsLoading)
+              .onClick(() => this.loadModels())
+            if (this.modelOptions.length > 0) {
+              Flex({ wrap: FlexWrap.Wrap }) {
+                ForEach(this.modelOptions, (m: string) => {
+                  Text(m).fontSize(11)
+                    .fontColor(this.modelText === m ? Theme.paper : Theme.green)
+                    .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                    .backgroundColor(this.modelText === m ? Theme.green : Theme.sage)
+                    .borderRadius(Theme.controlRadius)
+                    .margin({ right: 8, bottom: 8 })
+                    .onClick(() => { this.modelText = m; })
+                }, (m: string) => m)
+              }.width('100%')
+            }
             Text('API Key').fontSize(12).fontColor(Theme.muted).width('100%')
             TextInput({ text: this.keyText }).fontSize(13).height(48).type(InputType.Password).backgroundColor(Theme.bg)
               .onChange((v: string) => { this.keyText = v; })

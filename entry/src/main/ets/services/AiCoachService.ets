@@ -25,6 +25,13 @@ interface AiChatResponse {
   choices?: AiChatChoice[];
   error?: AiChatError;
 }
+interface AiModelEntry {
+  id?: string;
+}
+interface AiModelListResponse {
+  data?: AiModelEntry[];
+  error?: AiChatError;
+}
 
 /**
  * AI 行动教练服务（可选、联网、默认关闭）。
@@ -70,6 +77,54 @@ export class AiCoachService {
       sentSummary: context
     };
     return Result.success(view);
+  }
+
+  /** 拉取中转站/接口的可用模型列表，便于避免模型名写错导致 404 */
+  static async listModels(config: AiConfig): Promise<Result<string[]>> {
+    const endpoint = AiConfigStore.effectiveEndpoint(config.endpoint);
+    const key = config.apiKey.trim();
+    if (endpoint.length === 0 || key.length === 0) {
+      return Result.failure(ErrorCode.E_INPUT_EMPTY, '请先填写接口地址和 API Key。');
+    }
+    const modelsUrl = AiCoachService.modelsEndpoint(endpoint);
+    const client = http.createHttp();
+    try {
+      const response = await client.request(modelsUrl, {
+        method: http.RequestMethod.GET,
+        header: { 'Authorization': `Bearer ${key}` },
+        connectTimeout: 15000,
+        readTimeout: 20000,
+        expectDataType: http.HttpDataType.STRING
+      });
+      const code = response.responseCode;
+      const raw = typeof response.result === 'string' ? response.result : '';
+      if (code !== 200) {
+        return Result.failure(ErrorCode.E_IO, AiCoachService.describeHttpError(code, raw));
+      }
+      const parsed = JSON.parse(raw) as AiModelListResponse;
+      if (parsed.data === undefined || parsed.data.length === 0) {
+        return Result.failure(ErrorCode.E_IO, '接口没有返回模型列表，可直接手动填写模型名。');
+      }
+      const out: string[] = [];
+      for (const m of parsed.data) {
+        if (m.id !== undefined && m.id.length > 0 && out.indexOf(m.id) < 0) {
+          out.push(m.id);
+        }
+      }
+      return Result.success(out);
+    } catch (e) {
+      return Result.failure(ErrorCode.E_IO, `读取模型列表失败：${AiCoachService.describeNetworkError(AiCoachService.errText(e))}`);
+    } finally {
+      client.destroy();
+    }
+  }
+
+  /** 从 chat completions 地址推导模型列表地址 */
+  static modelsEndpoint(endpoint: string): string {
+    if (endpoint.endsWith('/chat/completions')) {
+      return `${endpoint.substring(0, endpoint.length - '/chat/completions'.length)}/models`;
+    }
+    return endpoint;
   }
 
   /** 连通性测试：只发一句最小请求。 */
