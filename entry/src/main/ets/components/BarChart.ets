@@ -2,8 +2,8 @@ import { Theme } from '../common/Theme';
 import { StatBucket } from '../models/StatsModels';
 
 /**
- * 柱状图（第 4.1 节 B2）：同口径展示正向贡献与增加排放。
- * 正值向上、负值向下，零线居中；全零或空数据时展示清晰的空状态。
+ * 正向贡献与增加排放：同一零基线的双向条形，细网格 + 圆角柱端。
+ * 空数据或全零时给出安静的空状态。
  */
 @Component
 export struct BarChart {
@@ -38,20 +38,20 @@ export struct BarChart {
           .fontColor(Theme.ink)
           .fontWeight(FontWeight.Medium)
           .layoutWeight(1)
-        Text(this.unit).fontSize(11).fontColor(Theme.muted)
+        Text(this.unit).fontSize(10).fontColor(Theme.chartText).fontFeature('"tnum" on')
       }.width('100%')
       if (this.populatedCount() === 0) {
         Column() {
           Text('暂无已记录数据').fontSize(12).fontColor(Theme.muted)
-        }.width('100%').height(76).justifyContent(FlexAlign.Center)
+        }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else if (this.allContributionsZero()) {
         Column() {
           Text('已记录 · 正向与增加排放均为 0').fontSize(12).fontColor(Theme.muted)
-        }.width('100%').height(76).justifyContent(FlexAlign.Center)
+        }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else {
         Canvas(this.ctx)
           .width('100%')
-          .height(136)
+          .height(158)
           .backgroundColor(Theme.paper)
           .onReady(() => {
             this.ready = true;
@@ -60,8 +60,9 @@ export struct BarChart {
       }
     }
     .width('100%')
-    .padding(16)
+    .padding({ left: 16, right: 16, top: 16, bottom: 12 })
     .backgroundColor(Theme.paper)
+    .border({ width: 1, color: Theme.line })
     .borderRadius(Theme.cardRadius)
   }
 
@@ -76,80 +77,113 @@ export struct BarChart {
     }
   }
 
+  /** 单向柱体：只在一端收圆角，另一端贴零线 */
+  private bar(x: number, y: number, width: number, height: number, up: boolean): void {
+    if (height <= 0.5) {
+      return;
+    }
+    const ctx = this.ctx;
+    const r = Math.min(3, width / 2, height);
+    ctx.beginPath();
+    if (up) {
+      ctx.moveTo(x, y + height);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height);
+    } else {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + height - r);
+      ctx.quadraticCurveTo(x, y + height, x + r, y + height);
+      ctx.lineTo(x + width - r, y + height);
+      ctx.quadraticCurveTo(x + width, y + height, x + width, y + height - r);
+      ctx.lineTo(x + width, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
   private draw(): void {
     const ctx = this.ctx;
     const w = ctx.width;
     const h = ctx.height;
     ctx.clearRect(0, 0, w, h);
-    const padL = 40;
-    const padR = 12;
-    const padT = 14;
-    const padB = 24;
+    const padL = 34;
+    const padR = 10;
+    const padT = 10;
+    const padB = 22;
     const plotW = w - padL - padR;
     const plotH = h - padT - padB;
     const n = this.data.length;
-    ctx.font = `${this.getUIContext().vp2px(11)}px sans-serif`;
+    const labelSize = this.getUIContext().vp2px(10);
+    const valueSize = this.getUIContext().vp2px(10);
     if (n === 0) {
-      ctx.fillStyle = Theme.muted;
-      ctx.fillText('暂无已记录数据', padL, h / 2);
       return;
     }
     let maxV = 0;
     let minV = 0;
     for (let i = 0; i < n; i++) {
-      if (this.data[i].positiveKg > maxV) {
-        maxV = this.data[i].positiveKg;
-      }
-      if (-this.data[i].negativeKg < minV) {
-        minV = -this.data[i].negativeKg;
-      }
+      if (this.data[i].positiveKg > maxV) { maxV = this.data[i].positiveKg; }
+      if (-this.data[i].negativeKg < minV) { minV = -this.data[i].negativeKg; }
     }
-    let range = maxV - minV;
-    if (range <= 0) {
-      maxV = 1;
-      minV = -1;
-      range = 2;
-    }
-    const zeroY = padT + plotH * (maxV / range);
+    const span = maxV - minV === 0 ? 1 : maxV - minV;
+    const top = maxV > 0 ? maxV + span * 0.16 : 0;
+    const bottom = minV < 0 ? minV - span * 0.16 : 0;
+    const range = top - bottom === 0 ? 1 : top - bottom;
+    const yOf = (v: number): number => padT + plotH * ((top - v) / range);
+    const zeroY = yOf(0);
 
-    ctx.strokeStyle = Theme.line;
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padL, padT);
-    ctx.lineTo(padL, padT + plotH);
-    ctx.lineTo(padL + plotW, padT + plotH);
-    ctx.stroke();
-    ctx.strokeStyle = '#AEB9AF';
-    ctx.beginPath();
-    ctx.moveTo(padL, zeroY);
-    ctx.lineTo(padL + plotW, zeroY);
-    ctx.stroke();
+    for (const v of [top, 0, bottom]) {
+      const y = yOf(v);
+      ctx.strokeStyle = v === 0 ? '#CBD5C6' : Theme.chartGrid;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + plotW, y);
+      ctx.stroke();
+    }
 
-    ctx.fillStyle = Theme.muted;
-    ctx.fillText(`${maxV.toFixed(1)}`, 2, padT + 8);
-    ctx.fillText(`${minV.toFixed(1)}`, 2, padT + plotH);
+    ctx.fillStyle = Theme.chartText;
+    ctx.font = `${valueSize}px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(this.formatTick(top), padL - 8, padT + 4);
+    ctx.fillText(this.formatTick(bottom), padL - 8, padT + plotH + 4);
+    ctx.textAlign = 'left';
 
     const slot = plotW / n;
-    const barW = slot > 26 ? 14 : slot * 0.5;
+    const barW = Math.max(6, Math.min(18, slot * 0.42));
     for (let i = 0; i < n; i++) {
       const cx = padL + slot * i + slot / 2;
       const b = this.data[i];
-      // 正向
       const posH = plotH * (b.positiveKg / range);
-      if (posH > 0) {
+      if (posH > 0.5) {
         ctx.fillStyle = Theme.green;
-        ctx.fillRect(cx - barW - 1, zeroY - posH, barW, posH);
+        this.bar(cx - barW / 2, zeroY - posH, barW, posH, true);
       }
-      // 增加排放（向下）
       const negH = plotH * (b.negativeKg / range);
-      if (negH > 0) {
+      if (negH > 0.5) {
         ctx.fillStyle = Theme.rust;
-        ctx.fillRect(cx + 1, zeroY, barW, negH);
-      }
-      if (i % 2 === 0 || n <= 6) {
-        ctx.fillStyle = Theme.muted;
-        ctx.fillText(b.label, cx - 12, padT + plotH + 14);
+        this.bar(cx - barW / 2, zeroY, barW, negH, false);
       }
     }
+
+    // 横轴标签：优先首位与末位，中间按密度补一个
+    ctx.fillStyle = Theme.chartText;
+    ctx.font = `${labelSize}px sans-serif`;
+    const idxs: number[] = [0];
+    if (n > 1) { idxs.push(n - 1); }
+    if (n > 4) { idxs.push(Math.floor((n - 1) / 2)); }
+    for (const i of idxs) {
+      const label = this.data[i].label;
+      const width = ctx.measureText(label).width;
+      const cx = padL + slot * i + slot / 2;
+      const x = Math.max(padL, Math.min(cx - width / 2, padL + plotW - width));
+      ctx.fillText(label, x, padT + plotH + 16);
+    }
+  }
+
+  private formatTick(value: number): string {
+    return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(1);
   }
 }

@@ -7,7 +7,7 @@ import { StatsService } from '../services/StatsService';
 import { LineChart } from './LineChart';
 import { BarChart } from './BarChart';
 import { PieChart } from './PieChart';
-import { StatsSummary } from '../models/StatsModels';
+import { StatBucket, StatsSummary } from '../models/StatsModels';
 import { BehaviorCategory, TimeDimension, GasScope, gasUnitLabel } from '../common/Domain';
 import { DateUtil, NumUtil } from '../common/Format';
 
@@ -145,6 +145,34 @@ export struct DashboardTab {
     }
   }
 
+  /**
+   * 日视图按区间补齐没有记录的日期：趋势图需要连续时间轴，
+   * 缺日按 0 显示，避免一个点或断开的折线。其他维度沿用服务端分桶。
+   */
+  private paddedBuckets(): StatBucket[] {
+    if (this.dimension() !== TimeDimension.DAY) {
+      return this.summary.buckets;
+    }
+    const existing: Map<string, StatBucket> = new Map<string, StatBucket>();
+    for (const b of this.summary.buckets) {
+      existing.set(b.key, b);
+    }
+    const out: StatBucket[] = [];
+    let day = this.from;
+    let guard = 0;
+    while (day <= this.to && guard < 400) {
+      const found = existing.get(day);
+      if (found !== undefined) {
+        out.push(found);
+      } else {
+        out.push({ key: day, label: day.substring(5), positiveKg: 0, negativeKg: 0, netKg: 0, count: 0 });
+      }
+      day = DateUtil.addDays(day, 1);
+      guard++;
+    }
+    return out.length > 0 ? out : this.summary.buckets;
+  }
+
   private catLabel(key: string): string {
     if (key === 'travel') {
       return '出行';
@@ -177,9 +205,12 @@ export struct DashboardTab {
           }.width('100%')
           Text(`${this.from} — ${this.to} · ${this.appliedLabel}`).fontSize(11).fontColor(Theme.muted).width('100%')
           Text(NumUtil.signed(this.summary.totalNetKg, 2)).fontSize(46).fontWeight(FontWeight.Medium).fontColor(Theme.green).fontFeature('"tnum" on').maxLines(1).minFontSize(24).maxFontSize(46).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).width('100%')
+          Divider().color('#CBD8C6').margin({ top: 2, bottom: 14 })
           Row() {
             SummaryCell({ label: '正向贡献', value: NumUtil.show(this.summary.totalPositiveKg), color: Theme.green })
+            Divider().vertical(true).height(26).color('#CBD8C6')
             SummaryCell({ label: '增加排放', value: NumUtil.show(this.summary.totalNegativeKg), color: Theme.rust })
+            Divider().vertical(true).height(26).color('#CBD8C6')
             SummaryCell({ label: '有效记录', value: `${this.summary.recordCount}`, color: Theme.ink })
           }.width('100%')
         }.width('100%').padding(20).backgroundColor(Theme.sage).borderRadius(Theme.panelRadius).alignItems(HorizontalAlign.Start)
@@ -225,9 +256,9 @@ export struct DashboardTab {
         }
         if (this.loading) { Notice({ text: '正在更新统计，下方显示上次查询结果。' }) }
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
-        LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.buckets })
-        BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.buckets }).margin({ top: 16 })
-        PieChart({ title: '各类行动的正向贡献', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.categories }).margin({ top: 16 })
+        LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets() })
+        BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets() }).margin({ top: 12 })
+        PieChart({ title: '各类行动的正向贡献', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.categories }).margin({ top: 12 })
         Text('正值为相对基准的减排贡献，负值为增加排放。仅统计已记录的有效行为，不代表完整个人碳足迹。')
           .fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%').margin({ top: 24, bottom: 30 })
       }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)

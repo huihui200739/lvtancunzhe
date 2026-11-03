@@ -1,9 +1,14 @@
 import { Theme } from '../common/Theme';
 import { StatBucket } from '../models/StatsModels';
 
+interface ChartPoint {
+  x: number;
+  y: number;
+}
+
 /**
- * 折线图（第 4.1 节 B2）：展示净变化（可为负）随时间的走势。
- * 与明细汇总口径一致；全零或空数据时正常显示，不出现除零。
+ * 净变化趋势图：柔和曲线 + 零基线，网格只保留水平发丝线。
+ * 数据为空或全零时给出安静的空状态，不画假线。
  */
 @Component
 export struct LineChart {
@@ -38,20 +43,20 @@ export struct LineChart {
           .fontColor(Theme.ink)
           .fontWeight(FontWeight.Medium)
           .layoutWeight(1)
-        Text(this.unit).fontSize(11).fontColor(Theme.muted)
+        Text(this.unit).fontSize(10).fontColor(Theme.chartText).fontFeature('"tnum" on')
       }.width('100%')
       if (this.populatedCount() === 0) {
         Column() {
           Text('暂无已记录数据').fontSize(12).fontColor(Theme.muted)
-        }.width('100%').height(76).justifyContent(FlexAlign.Center)
+        }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else if (this.allNetZero()) {
         Column() {
           Text('已记录 · 净变化为 0').fontSize(12).fontColor(Theme.muted)
-        }.width('100%').height(76).justifyContent(FlexAlign.Center)
+        }.width('100%').height(96).justifyContent(FlexAlign.Center)
       } else {
         Canvas(this.ctx)
           .width('100%')
-          .height(136)
+          .height(158)
           .backgroundColor(Theme.paper)
           .onReady(() => {
             this.ready = true;
@@ -60,8 +65,9 @@ export struct LineChart {
       }
     }
     .width('100%')
-    .padding(16)
+    .padding({ left: 16, right: 16, top: 16, bottom: 12 })
     .backgroundColor(Theme.paper)
+    .border({ width: 1, color: Theme.line })
     .borderRadius(Theme.cardRadius)
   }
 
@@ -76,99 +82,155 @@ export struct LineChart {
     }
   }
 
+  /** 依次连接各点，使用 Catmull-Rom 转三次贝塞尔，避免折线生硬 */
+  private traceCurve(points: ChartPoint[]): void {
+    const ctx = this.ctx;
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i === 0 ? 0 : i - 1];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2 < points.length ? i + 2 : points.length - 1];
+      // 控制点限制在本段两端之间，避免曲线冲出零线造成“负值”错觉
+      const lo = Math.min(p1.y, p2.y);
+      const hi = Math.max(p1.y, p2.y);
+      const c1x = p1.x + (p2.x - p0.x) / 8;
+      const c2x = p2.x - (p3.x - p1.x) / 8;
+      const c1y = Math.max(lo, Math.min(hi, p1.y + (p2.y - p0.y) / 8));
+      const c2y = Math.max(lo, Math.min(hi, p2.y - (p3.y - p1.y) / 8));
+      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, p2.x, p2.y);
+    }
+  }
+
   private draw(): void {
     const ctx = this.ctx;
     const w = ctx.width;
     const h = ctx.height;
     ctx.clearRect(0, 0, w, h);
-    const padL = 40;
-    const padR = 12;
-    const padT = 14;
-    const padB = 24;
+    const padL = 34;
+    const padR = 10;
+    const padT = 10;
+    const padB = 22;
     const plotW = w - padL - padR;
     const plotH = h - padT - padB;
     const n = this.data.length;
-    ctx.font = `${this.getUIContext().vp2px(11)}px sans-serif`;
+    const labelSize = this.getUIContext().vp2px(10);
+    const valueSize = this.getUIContext().vp2px(10);
     if (n === 0) {
-      ctx.fillStyle = Theme.muted;
-      ctx.fillText('暂无已记录数据', padL, h / 2);
       return;
     }
     let maxV = 0;
     let minV = 0;
     for (let i = 0; i < n; i++) {
-      if (this.data[i].netKg > maxV) {
-        maxV = this.data[i].netKg;
-      }
-      if (this.data[i].netKg < minV) {
-        minV = this.data[i].netKg;
-      }
+      if (this.data[i].netKg > maxV) { maxV = this.data[i].netKg; }
+      if (this.data[i].netKg < minV) { minV = this.data[i].netKg; }
     }
-    let range = maxV - minV;
-    if (range <= 0) {
-      maxV = 1;
-      minV = -1;
-      range = 2;
-    }
-    const zeroY = padT + plotH * (maxV / range);
+    const span = maxV - minV === 0 ? 1 : maxV - minV;
+    // 全为正向/全为负向时把坐标轴锚在 0，避免出现没有意义的负刻度
+    const top = maxV > 0 ? maxV + span * 0.18 : 0;
+    const bottom = minV < 0 ? minV - span * 0.18 : 0;
+    const rangeSafe = top - bottom === 0 ? 1 : top - bottom;
+    const range = rangeSafe;
+    const yOf = (v: number): number => padT + plotH * ((top - v) / range);
+    const zeroY = yOf(0);
 
-    // 坐标轴与零线
-    ctx.strokeStyle = Theme.line;
+    // 水平发丝网格：顶、零线、底；零线略深，其余极淡
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padL, padT);
-    ctx.lineTo(padL, padT + plotH);
-    ctx.lineTo(padL + plotW, padT + plotH);
-    ctx.stroke();
-    ctx.strokeStyle = '#AEB9AF';
-    ctx.beginPath();
-    ctx.moveTo(padL, zeroY);
-    ctx.lineTo(padL + plotW, zeroY);
-    ctx.stroke();
+    const rows: number[] = [padT, zeroY, padT + plotH];
+    for (const y of rows) {
+      ctx.strokeStyle = y === zeroY ? '#CBD5C6' : Theme.chartGrid;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + plotW, y);
+      ctx.stroke();
+    }
 
-    ctx.fillStyle = Theme.muted;
-    ctx.fillText(`${maxV.toFixed(1)}`, 2, padT + 8);
-    ctx.fillText(`${minV.toFixed(1)}`, 2, padT + plotH);
+    // 纵轴只保留上下两个刻度，避免噪声
+    ctx.fillStyle = Theme.chartText;
+    ctx.font = `${valueSize}px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(this.formatTick(top), padL - 8, padT + 4);
+    ctx.fillText(this.formatTick(bottom), padL - 8, padT + plotH + 4);
+    ctx.textAlign = 'left';
 
-    // 折线
+    // 数据点坐标
     const stepX = n > 1 ? plotW / (n - 1) : 0;
+    const points: ChartPoint[] = [];
+    for (let i = 0; i < n; i++) {
+      points.push({ x: padL + (n > 1 ? stepX * i : plotW / 2), y: yOf(this.data[i].netKg) });
+    }
+
+    // 面积：从曲线落到零线，自上而下渐隐
+    const baseY = Math.max(padT, Math.min(padT + plotH, zeroY));
+    const gradient = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+    gradient.addColorStop(0, Theme.chartArea);
+    gradient.addColorStop(1, '#00244E40');
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, baseY);
+    ctx.lineTo(points[0].x, points[0].y);
+    this.traceCurve(points);
+    ctx.lineTo(points[points.length - 1].x, baseY);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // 曲线
+    ctx.beginPath();
+    this.traceCurve(points);
     ctx.strokeStyle = Theme.green;
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i = 0; i < n; i++) {
-      const x = padL + (n > 1 ? stepX * i : plotW / 2);
-      const y = padT + plotH * ((maxV - this.data[i].netKg) / range);
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.stroke();
 
-    // 数据点
-    ctx.fillStyle = Theme.green;
-    for (let i = 0; i < n; i++) {
-      const x = padL + (n > 1 ? stepX * i : plotW / 2);
-      const y = padT + plotH * ((maxV - this.data[i].netKg) / range);
+    // 数据点只标有记录的日期：点代表真实记录，空白天不画点
+    let lastCounted = -1;
+    for (let i = 0; i < this.data.length; i++) {
+      if (this.data[i].count > 0) { lastCounted = i; }
+    }
+    for (let i = 0; i < points.length; i++) {
+      if (this.data[i].count === 0) {
+        continue;
+      }
+      const isLast = i === lastCounted;
       ctx.beginPath();
-      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      ctx.arc(points[i].x, points[i].y, isLast ? 3.4 : 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = Theme.green;
       ctx.fill();
+      ctx.beginPath();
+      ctx.arc(points[i].x, points[i].y, isLast ? 5.4 : 4.2, 0, Math.PI * 2);
+      ctx.strokeStyle = Theme.paper;
+      ctx.lineWidth = isLast ? 1.6 : 1.2;
+      ctx.stroke();
     }
 
-    // 横轴标签：首、中、尾
-    ctx.fillStyle = Theme.muted;
+    // 横轴标签：优先首位与末位，标签过密时只留首尾
+    ctx.fillStyle = Theme.chartText;
+    ctx.font = `${labelSize}px sans-serif`;
     const idxs: number[] = [0];
-    if (n > 2) {
-      idxs.push(Math.floor((n - 1) / 2));
-    }
-    if (n > 1) {
-      idxs.push(n - 1);
-    }
+    if (n > 2) { idxs.push(n - 1); }
     for (const i of idxs) {
-      const x = padL + (n > 1 ? stepX * i : plotW / 2);
       const label = this.data[i].label;
-      ctx.fillText(label, x - 14, padT + plotH + 14);
+      const width = ctx.measureText(label).width;
+      const x = Math.max(padL, Math.min(points[i].x - width / 2, padL + plotW - width));
+      ctx.fillText(label, x, padT + plotH + 16);
     }
+    if (n > 4) {
+      const mid = Math.floor((n - 1) / 2);
+      const label = this.data[mid].label;
+      const width = ctx.measureText(label).width;
+      const x = points[mid].x - width / 2;
+      if (x > padL + 40 && x + width < padL + plotW - 40) {
+        ctx.fillText(label, x, padT + plotH + 16);
+      }
+    }
+  }
+
+  private formatTick(value: number): string {
+    const abs = Math.abs(value);
+    if (abs >= 100) {
+      return value.toFixed(0);
+    }
+    return value.toFixed(1);
   }
 }

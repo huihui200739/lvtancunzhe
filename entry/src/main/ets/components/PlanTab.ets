@@ -459,14 +459,12 @@ export struct PlanTab {
     Column({ space: 10 }) {
       Row() {
         Text('AI 补充建议').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink).layoutWeight(1)
-        Text('联网 · 可选').fontSize(11).fontColor(Theme.muted)
+        Text('AI 生成 · 仅供参考').fontSize(11).fontColor(Theme.muted)
       }.width('100%')
       Text('只发送这份计划的标题、类别、日期与预计值；AI 文本不参与核算与积分。')
         .fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%')
       if (this.aiSuggestion !== null) {
         Text(this.aiSuggestion.text).fontSize(14).lineHeight(24).fontColor(Theme.ink).width('100%')
-        Text(`${this.aiSuggestion.model} · ${this.aiSuggestion.createdAt} · AI 生成，仅供参考`)
-          .fontSize(11).fontColor(Theme.muted).width('100%')
         Button('换一句').height(40).fontSize(12).fontColor(Theme.green).backgroundColor(Theme.sage)
           .enabled(!this.aiBusy).onClick(() => this.requestAiSuggestion())
       } else {

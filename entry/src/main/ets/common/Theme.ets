@@ -13,6 +13,9 @@ export class Theme {
   static readonly panelRadius: number = 20;
   static readonly heroRadius: number = 24;
   static readonly controlRadius: number = 10;
+  static readonly chartGrid: string = '#EEF1E9';
+  static readonly chartText: string = '#8A968B';
+  static readonly chartArea: string = '#29244E40';
 }
 
 export function iconResource(name: string, color: string = Theme.green): Resource {
