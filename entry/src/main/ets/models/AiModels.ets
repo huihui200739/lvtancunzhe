@@ -50,3 +50,10 @@ export interface AiModelOption {
   /** 每百万 tokens 输出价格（已归一化），未返回或不可信时不展示 */
   priceOut?: number;
 }
+
+/** 一条 AI 周报备注：只含清洗后的建议文本、模型名与生成时间；只存本机偏好文件，不进账本与导出 */
+export interface AiNoteEntry {
+  text: string;
+  model: string;
+  createdAt: string;
+}

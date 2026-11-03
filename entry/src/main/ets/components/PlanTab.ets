@@ -1,4 +1,5 @@
 import { promptAction } from '@kit.ArkUI';
+import { pasteboard } from '@kit.BasicServicesKit';
 import { Theme } from '../common/Theme';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, SubpageHeader } from '../components/DesignSystem';
 import { router } from '@kit.ArkUI';
@@ -14,6 +15,7 @@ import { DateUtil, NumUtil } from '../common/Format';
 import { AiConfig, AiSuggestionView } from '../models/AiModels';
 import { AiConfigStore } from '../services/AiConfigStore';
 import { AiCoachService } from '../services/AiCoachService';
+import { AiNoteStore } from '../services/AiNoteStore';
 
 function emptyOutcome(): PlanOutcome {
   return {
@@ -67,6 +69,7 @@ export struct PlanTab {
   @State aiConfig: AiConfig | null = null;
   @State aiBusy: boolean = false;
   @State aiSuggestion: AiSuggestionView | null = null;
+  @State aiNoteBusy: boolean = false;
   @State aiMessage: string = '';
 
   private catOptions: KeyLabel[] = [
@@ -454,6 +457,30 @@ export struct PlanTab {
     }
   }
 
+  private copyAiSuggestion(): void {
+    if (this.aiSuggestion === null) { return; }
+    const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.aiSuggestion.text);
+    pasteboard.getSystemPasteboard().setData(data).then(() => {
+      this.aiMessage = '已复制到剪贴板，可自行粘贴到备忘录或周报里。';
+    }).catch(() => {
+      this.aiMessage = '复制未完成，可长按建议文本手动复制。';
+    });
+  }
+
+  private async saveAiNote(): Promise<void> {
+    if (this.aiSuggestion === null || this.aiNoteBusy) { return; }
+    this.aiNoteBusy = true;
+    try {
+      const res = await AiNoteStore.saveNote(getContext(this), DateUtil.today(),
+        this.aiSuggestion.text, this.aiSuggestion.model);
+      this.aiMessage = res.ok
+        ? '已存为本周周报备注：仅保存在本机偏好文件，不进入账本、备份或导出，卸载应用即清除。'
+        : res.message;
+    } finally {
+      this.aiNoteBusy = false;
+    }
+  }
+
   @Builder
   aiSuggestionBlock() {
     Column({ space: 10 }) {
@@ -461,12 +488,19 @@ export struct PlanTab {
         Text('AI 补充建议').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink).layoutWeight(1)
         Text('AI 生成 · 仅供参考').fontSize(11).fontColor(Theme.muted)
       }.width('100%')
-      Text('只发送这份计划的标题、类别、日期与预计值；AI 文本不参与核算与积分。')
+      Text('只发送这份计划的标题、类别、日期与预计值；AI 文本不参与核算与积分；复制或存为周报备注都只留在本机。')
         .fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%')
       if (this.aiSuggestion !== null) {
         Text(this.aiSuggestion.text).fontSize(14).lineHeight(24).fontColor(Theme.ink).width('100%')
-        Button('换一句').height(40).fontSize(12).fontColor(Theme.green).backgroundColor(Theme.sage)
-          .enabled(!this.aiBusy).onClick(() => this.requestAiSuggestion())
+        Row({ space: 8 }) {
+          Button('换一句').height(40).fontSize(12).fontColor(Theme.green).backgroundColor(Theme.sage)
+            .enabled(!this.aiBusy).onClick(() => this.requestAiSuggestion())
+          Button('复制文本').height(40).fontSize(12).fontColor(Theme.green).backgroundColor(Theme.sage)
+            .enabled(!this.aiNoteBusy).onClick(() => this.copyAiSuggestion())
+          Button(this.aiNoteBusy ? '正在保存…' : '存为周报备注').height(40).fontSize(12)
+            .fontColor(Theme.green).backgroundColor(Theme.sage)
+            .enabled(!this.aiNoteBusy).onClick(() => this.saveAiNote())
+        }.width('100%')
       } else {
         Button(this.aiBusy ? '正在请求…' : '让 AI 补充一句').height(42).fontSize(12).fontColor(Theme.green)
           .backgroundColor(Theme.sage).enabled(!this.aiBusy).onClick(() => this.requestAiSuggestion())

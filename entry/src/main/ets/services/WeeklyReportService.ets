@@ -5,14 +5,16 @@ import { Result, ErrorCode } from '../common/AppError';
 import { DateUtil, NumUtil } from '../common/Format';
 import { TimeDimension } from '../common/Domain';
 import { StatsSummary } from '../models/StatsModels';
+import { AiNoteEntry } from '../models/AiModels';
 
 /** 生成不含记录编号、备注或用户身份信息的七日分享文本。 */
 export class WeeklyReportService {
-  static async buildWeeklyReport(db: LedgerDb, endDay: string = DateUtil.today()): Promise<Result<string>> {
-    return LedgerOperations.run(() => WeeklyReportService.buildUnlocked(db, endDay));
+  static async buildWeeklyReport(db: LedgerDb, endDay: string = DateUtil.today(),
+    aiNote: AiNoteEntry | null = null): Promise<Result<string>> {
+    return LedgerOperations.run(() => WeeklyReportService.buildUnlocked(db, endDay, aiNote));
   }
 
-  private static async buildUnlocked(db: LedgerDb, endDay: string): Promise<Result<string>> {
+  private static async buildUnlocked(db: LedgerDb, endDay: string, aiNote: AiNoteEntry | null): Promise<Result<string>> {
     if (!DateUtil.isValidDay(endDay)) {
       return Result.failure(ErrorCode.E_QUANTITY_INVALID, '统计结束日期无效，未生成周报。');
     }
@@ -55,6 +57,11 @@ export class WeeklyReportService {
       }
       lines.push('');
       lines.push('说明：仅汇总本地已记录行为的用户申报估算，不是完整个人碳足迹，也不是经核证碳资产。分享前请自行检查内容。');
+      if (aiNote !== null && aiNote.text.length > 0) {
+        lines.push('');
+        lines.push(`AI 备注 · ${aiNote.createdAt} · 模型 ${aiNote.model} · 仅供参考，非核算数据：`);
+        lines.push(aiNote.text);
+      }
       return Result.success(lines.join('\n'));
     } catch (e) {
       return Result.failure(ErrorCode.E_STORAGE, `生成周报失败：${WeeklyReportService.errText(e)}`);

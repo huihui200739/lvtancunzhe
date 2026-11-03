@@ -19,6 +19,7 @@ import { DateUtil, NumUtil } from '../common/Format';
 import { Ids } from '../common/Ids';
 import { APP_VERSION } from '../common/BuildConfig';
 import { WeeklyReportService } from '../services/WeeklyReportService';
+import { AiNoteStore } from '../services/AiNoteStore';
 import { AiConfig, maskKey } from '../models/AiModels';
 import { AiConfigStore } from '../services/AiConfigStore';
 
@@ -236,7 +237,9 @@ export struct ProfileTab {
     if (this.dataBusy || !AppService.isReady()) { return; }
     this.dataBusy = true;
     try {
-      const result = await WeeklyReportService.buildWeeklyReport(LedgerDb.get());
+      // AI 备注只从本机偏好读取，是否追加由用户事先“存为周报备注”决定；不修改核算内容
+      const aiNote = await AiNoteStore.loadNote(this.context(), DateUtil.today());
+      const result = await WeeklyReportService.buildWeeklyReport(LedgerDb.get(), DateUtil.today(), aiNote);
       if (!result.ok || result.data === null) {
         this.toast(result.message);
         return;

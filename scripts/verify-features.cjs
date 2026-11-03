@@ -6,6 +6,7 @@ const {LocalMockBenefitService}=load('services/LocalMockBenefitService');
 const {AiCoachService}=load('services/AiCoachService');
 const {AiConfigStore}=load('services/AiConfigStore');
 const {maskKey}=load('models/AiModels');
+const {AiNoteStore}=load('services/AiNoteStore');
 let checks=0;async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
 const task=(id,day,status,extra={})=>({planTaskId:id,planId:'p',templateId:'P01',name:id,category:D.BehaviorCategory.TRAVEL,day,status,expectedKg:0.42,quantity:1,unit:'km',extraMinutes:10,extraCost:0,reason:'与已保存计划一致',participationOnly:false,linkedRecordId:'',actualKg:0,rewarded:false,...extra});
 const voucher=(over={})=>({
@@ -99,6 +100,28 @@ const voucher=(over={})=>({
   const bad=AiCoachService.parseModelOption({id:'m3',context_length:-5,pricing:{prompt:'abc',completion:0}});
   assert.equal(bad.contextLength,undefined);assert.equal(bad.priceIn,undefined);assert.equal(bad.priceOut,undefined);
   assert.equal(AiCoachService.modelMetaText(bad),'');
+ });
+ await check('周报可选附加 AI 备注并显式标注非核算来源，不传则输出不变',async()=>{
+  const db={queryStatRows:async()=>[]};
+  const base=await WeeklyReportService.buildWeeklyReport(db,today);assert.equal(base.ok,true,base.message);
+  assert.doesNotMatch(base.data,/AI 备注/);
+  const note={text:'先完成周三的步行通勤，其余按计划推进',model:'demo-model',createdAt:'2026-11-04T12:00:00'};
+  const withNote=await WeeklyReportService.buildWeeklyReport(db,today,note);assert.equal(withNote.ok,true,withNote.message);
+  assert.match(withNote.data,/AI 备注 · 2026-11-04T12:00:00 · 模型 demo-model · 仅供参考，非核算数据：/);
+  assert.match(withNote.data,/先完成周三的步行通勤/);
+  const empty=await WeeklyReportService.buildWeeklyReport(db,today,{text:'',model:'m',createdAt:'x'});
+  assert.doesNotMatch(empty.data,/AI 备注/);
+ });
+ await check('AI 周报备注按周键归档且最多保留8周，只存清洗文本于本机偏好',()=>{
+  const week=DateUtil.weekStart(today);
+  const notes={};
+  for(let i=0;i<10;i++){notes[DateUtil.addDays(week,-7*i)]={text:`第${i}周`,model:'m',createdAt:'c'};}
+  const kept=AiNoteStore.prune(notes);
+  const keys=Object.keys(kept);
+  assert.equal(keys.length,8);
+  assert.equal(kept[week].text,'第0周');
+  assert.equal(kept[DateUtil.addDays(week,-49)].text,'第7周');
+  assert.equal(kept[DateUtil.addDays(week,-56)],undefined);
  });
  await check('中转站根地址自动补全为 chat completions',()=>{
   assert.equal(AiConfigStore.effectiveEndpoint('https://www.sub-coco.org'),'https://www.sub-coco.org/v1/chat/completions');
