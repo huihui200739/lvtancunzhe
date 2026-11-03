@@ -9,6 +9,10 @@ export class Theme {
   static readonly sage: string = '#EAF0E3';
   static readonly lime: string = '#D8EBA6';
   static readonly rust: string = '#A65F46';
+  static readonly cardRadius: number = 16;
+  static readonly panelRadius: number = 20;
+  static readonly heroRadius: number = 24;
+  static readonly controlRadius: number = 10;
 }
 
 export function iconResource(name: string, color: string = Theme.green): Resource {
@@ -34,11 +38,4 @@ export function categoryIcon(category: string): string {
   if (category === 'water_energy') { return 'energy'; }
   if (category === 'recycling') { return 'recycle'; }
   return 'food';
-}
-
-export function categoryTint(category: string): string {
-  if (category === 'travel') { return '#E7EEDD'; }
-  if (category === 'water_energy') { return '#F5EBD0'; }
-  if (category === 'recycling') { return '#E6EBF2'; }
-  return '#F5E4DC';
 }

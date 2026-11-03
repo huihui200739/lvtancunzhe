@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "Green Carbon Passbook"
+    },
+    {
+      "name": "internet_reason",
+      "value": "仅在你开启 AI 补充建议并主动请求时访问你自己配置的接口"
     }
   ]
 }

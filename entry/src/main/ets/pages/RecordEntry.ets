@@ -43,7 +43,7 @@ struct FactorChips {
             .fontSize(12)
             .fontColor(this.selected === c.code ? '#FFFFFF' : Theme.ink)
           Text(c.detail)
-            .fontSize(10)
+            .fontSize(11)
             .fontColor(this.selected === c.code ? '#C8D9C6' : Theme.muted)
             .margin({ top: 2 })
         }
@@ -382,7 +382,7 @@ struct RecordEntry {
       SubpageHeader({ title: '记一笔绿色行动' })
       Scroll() {
         Column() {
-          PageIntro({ title: '今天，做了哪件小事？', subtitle: '填写真实发生的行动，留下有依据的绿色记录。', eyebrow: '一笔一笔，存下改变' })
+          PageIntro({ title: '记录真实发生的行动', subtitle: '选择行动与适用情景，核对数量后查看估算结果。', eyebrow: '新增记录' })
           if (this.planContext.length > 0) { Notice({ text: this.planContext }).margin({ bottom: 16 }) }
           Column() {
           Flex({ wrap: FlexWrap.Wrap }) {
@@ -434,7 +434,7 @@ struct RecordEntry {
                 }.width('100%')
                 Text('车辆公里因子按载客人数折算为个人份额。').fontSize(11).fontColor(Theme.muted).width('100%')
               }
-            }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24)
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
             SectionHeading({ title: '03  记下依据与日期', detail: this.conditionText().length > 0 ? '依据必填' : '备注可选' })
             Column({ space: 14 }) {
               Row({ space: 10 }) {
@@ -450,7 +450,7 @@ struct RecordEntry {
               }.width('100%')
               TextInput({ text: this.remark, placeholder: this.conditionText().length > 0 ? '填写数量、原本情景及实际处理／采购依据' : '比如：今天骑车去图书馆' }).id('record-evidence').fontSize(13).height(52).backgroundColor(Theme.bg)
                 .onChange((v: string) => { this.remark = v; })
-            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(24)
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
             if (this.conditionText().length > 0) {
               Notice({ text: this.conditionText(), warning: true }).margin({ top: 20 })
               Row({ space: 10 }) {
@@ -474,7 +474,7 @@ struct RecordEntry {
           }
           Text('数量由你填写，未独立核实；估算结果不构成经核证碳资产。').fontSize(11).lineHeight(20).fontColor(Theme.muted)
             .width('100%').margin({ top: 18, bottom: 30 })
-        }.width('100%').padding({ left: 22, right: 22 }).alignItems(HorizontalAlign.Start)
+        }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)
       }.layoutWeight(1).width('100%').align(Alignment.TopStart).scrollBar(BarState.Off)
     }.width('100%').height('100%').backgroundColor(Theme.bg)
   }

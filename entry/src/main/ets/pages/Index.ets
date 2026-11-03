@@ -21,7 +21,7 @@ struct NavItem {
   build() {
     Column({ space: 5 }) {
       AppIcon({ name: this.icon, iconSize: 23, color: this.currentTab === this.destinationIndex ? Theme.green : '#89968A' })
-      Text(this.label).fontSize(10).fontWeight(this.currentTab === this.destinationIndex ? FontWeight.Medium : FontWeight.Regular)
+      Text(this.label).fontSize(11).fontWeight(this.currentTab === this.destinationIndex ? FontWeight.Medium : FontWeight.Regular)
         .fontColor(this.currentTab === this.destinationIndex ? Theme.green : Theme.muted)
       Circle().width(3).height(3).fill(this.currentTab === this.destinationIndex ? Theme.green : Color.Transparent)
     }.width('100%').height(66).justifyContent(FlexAlign.Center)

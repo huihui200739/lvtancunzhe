@@ -316,9 +316,9 @@ export class PlanEngine {
     let baseParticipation = (t.category === BehaviorCategory.TRAVEL && baseline === undefined) || !t.hasComparableQuantity || t.factorSubItem.length === 0 || factor === undefined;
     let note = '';
     if (t.category === BehaviorCategory.TRAVEL && baseline === undefined) { note = '出行需另填个人汽油用量对照，本计划只安排参与，不预估减排量。'; }
-    else if (baseParticipation && !t.hasComparableQuantity) {
-      note = '该任务缺少可比较数量，只计参与积分。';
-    } else if (baseParticipation && factor === undefined) {
+    // 模板本身已写明「不产生可比数量、只计参与」时不再追加同义说明，避免一句话说两遍；
+    // 只有模板声明了因子、却在正式库找不到时才提示缺因子。
+    else if (baseParticipation && t.factorSubItem.length > 0 && factor === undefined) {
       note = '缺少已核验的可用因子，暂不能估算，只计参与积分。';
     }
 
@@ -469,7 +469,7 @@ export class PlanEngine {
     }
   }
 
-  /** 渲染推荐解释；附加 note 时补在末尾 */
+  /** 渲染推荐解释；附加 note 时补在末尾（与模板已有说明重复时不追加） */
   private static renderReason(t: TaskTemplate, day: string, usualWay: string, note: string): string {
     const wd = WEEKDAY_LABELS[PlanEngine.weekday(day) - 1];
     let s = t.explainTemplate;
@@ -478,7 +478,7 @@ export class PlanEngine {
     s = s.split('{cost}').join(`${t.extraCost}`);
     s = s.split('{quantity}').join(`${t.defaultQuantity}`);
     s = s.split('{usualWay}').join(usualWay);
-    if (note.length > 0) {
+    if (note.length > 0 && s.indexOf(note) < 0) {
       s = `${s} ${note}`;
     }
     return s;

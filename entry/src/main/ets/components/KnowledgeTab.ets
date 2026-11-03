@@ -181,15 +181,15 @@ export struct KnowledgeTab {
   build() {
     Scroll() {
       Column() {
-        PageIntro({ title: '懂一点，绿一点', subtitle: '把低碳知识，变成触手可及的日常。', eyebrow: '给生活的一点灵感 / JOURNAL' })
+        PageIntro({ title: '低碳知识，随时查阅', subtitle: '离线文章涵盖政策、知识与行动技巧。', eyebrow: '离线科普' })
         Row() {
           Column({ space: 12 }) {
-            Text('GREEN NOTES').fontSize(10).letterSpacing(2).fontColor(Theme.muted)
+            Text('政策 · 知识 · 技巧').fontSize(12).fontColor(Theme.muted)
             Text('好的改变，\n从理解开始。').fontSize(25).lineHeight(36).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
             Text(`${this.articles.length} 篇离线读物 · 随时翻阅`).fontSize(11).fontColor(Theme.muted)
           }.layoutWeight(1).alignItems(HorizontalAlign.Start)
           Image($r('app.media.botanical')).width(this.getUIContext().fp2px(1) > this.getUIContext().vp2px(1) * 1.2 ? 56 : 100).height(172).objectFit(ImageFit.Contain).accessibilityLevel('no')
-        }.width('100%').padding(24).backgroundColor('#E7EDD9').borderRadius(28)
+        }.width('100%').padding(20).backgroundColor('#E7EDD9').borderRadius(Theme.panelRadius)
         Row({ space: 8 }) {
           ForEach(this.cats, (c: CatOption) => {
             Text(c.label).fontSize(13).fontColor(this.filterKey === c.key ? Theme.paper : Theme.muted)
@@ -201,7 +201,7 @@ export struct KnowledgeTab {
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
         ForEach(this.articles.filter((a: Article) => this.match(a)), (a: Article) => { this.articleCard(a); }, (a: Article) => a.articleId)
         Text('读懂一件事，再试着做一件小事。').fontSize(11).fontColor(Theme.muted).margin({ top: 16, bottom: 30 })
-      }.width('100%').padding({ left: 22, right: 22 }).alignItems(HorizontalAlign.Start)
+      }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).scrollBar(BarState.Off).backgroundColor(Theme.bg)
   }
 
@@ -209,10 +209,10 @@ export struct KnowledgeTab {
   articleCard(a: Article) {
     Column({ space: 12 }) {
       Row() {
-        Text(articleCategoryName(a.category)).fontSize(10).fontColor(Theme.green).padding({ left: 10, right: 10, top: 5, bottom: 5 })
+        Text(articleCategoryName(a.category)).fontSize(11).fontColor(Theme.green).padding({ left: 10, right: 10, top: 5, bottom: 5 })
           .backgroundColor(Theme.sage).borderRadius(8)
         Blank()
-        Text(`${a.readMinutes} 分钟阅读`).fontSize(10).fontColor(Theme.muted)
+        Text(`${a.readMinutes} 分钟阅读`).fontSize(11).fontColor(Theme.muted)
       }.width('100%')
       Text(a.title).fontSize(19).lineHeight(29).fontWeight(FontWeight.Medium).fontColor(Theme.ink).width('100%')
       Text(a.summary).fontSize(13).lineHeight(23).fontColor(Theme.muted).width('100%')
@@ -220,19 +220,19 @@ export struct KnowledgeTab {
         if (this.figReady(a)) {
           this.figureOf(a)
         } else {
-          Text('配图说明：本篇图示依赖的因子数据未就绪，暂以正文说明替代。').fontSize(10).fontColor(Theme.muted).width('100%')
+          Text('配图说明：本篇图示依赖的因子数据未就绪，暂以正文说明替代。').fontSize(11).fontColor(Theme.muted).width('100%')
         }
         Divider().color(Theme.line).margin({ top: 4, bottom: 4 })
         Text(a.body).fontSize(15).lineHeight(28).fontColor(Theme.ink).width('100%')
         Text(`来源：${a.sourceTitle}`).fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%')
         Text(this.figReady(a) ? FIGURE_LICENSE : '配图许可：本篇暂无叠加图示；顶部植物为本应用统一品牌插图，非本篇内容图。')
-          .fontSize(10).lineHeight(16).fontColor(Theme.muted).width('100%')
+          .fontSize(11).lineHeight(16).fontColor(Theme.muted).width('100%')
       }
       Row() {
         Text(this.expandId === a.articleId ? '收起文章' : '慢慢读一读').fontSize(12).fontColor(Theme.green).layoutWeight(1)
         AppIcon({ name: 'arrow', iconSize: 18 })
       }.width('100%').padding({ top: 6, bottom: 4 })
-    }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24).margin({ bottom: 14 })
+    }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ bottom: 12 })
       .onClick(() => { this.expandId = this.expandId === a.articleId ? '' : a.articleId; })
   }
 }

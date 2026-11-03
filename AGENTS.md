@@ -1,11 +1,11 @@
 # 绿碳存折：协作入口
 
-OpenHarmony / ArkTS / ArkUI / 本地RDB的离线低碳记录应用。当前协作候选1.1.3，schema2。
+OpenHarmony / ArkTS / ArkUI / 本地RDB的离线低碳记录应用。当前协作候选1.2.0，schema2。
 现役事实先读README.md和docs/team/项目说明.md；验收看docs/team/验收记录.md。
 
 ## 运行和验证
 
-- `npm ci --ignore-scripts`，`npm test`：59项隔离服务回归，不是原生UI验收。
+- `npm ci --ignore-scripts`，`npm test`：59项基线 + 12项特色功能隔离服务回归（共71项），不是原生UI验收。
 - macOS：`bash scripts/setup-sdk.sh`，`./build.sh prod`；自定义路径见README。
 - Windows/其他平台：按docs/team/试用指南.md配置DevEco与API24 SDK。
 - `./build.sh`是debug/测试因子模式；release必须DEV_FACTOR_MODE=false。
@@ -25,6 +25,7 @@ OpenHarmony / ArkTS / ArkUI / 本地RDB的离线低碳记录应用。当前协�
 - 修订保留历史，撤销写冲正；schema修改必须迁移、验证旧数据恢复。
 - 测试用独立QA包，不清空或迁移维护者主库/开发库。负责人原开发库6条记录、21分不得破坏。
 - 正式库lvtancunzhe-production.db与开发库lvtancunzhe.db及备份隔离。
+- AI 为可选联网功能，默认关闭；密钥只存偏好文件，不得写入RDB、备份、CSV或日志，请求只发送计划公开摘要。
 - 保留呼吸风格、可关闭动效及大字体支持。
 - SDK、密钥、数据库、测试备份及本机验收中间文件不纳入Git。
 

@@ -1,0 +1,40 @@
+/** AI 助手配置与结果模型。密钥只保存在本机应用沙箱，不进入账本、备份或导出。 */
+export interface AiConfig {
+  /** OpenAI 兼容的 chat completions 地址，必须使用 https */
+  endpoint: string;
+  /** 模型名，例如 deepseek-chat */
+  model: string;
+  /** 用户自备的 API Key，仅本机保存 */
+  apiKey: string;
+  /** 用户是否明确开启 AI 补充建议（默认关闭） */
+  enabled: boolean;
+}
+
+/** 一次 AI 建议结果，带来源标注，便于界面如实展示。 */
+export interface AiSuggestionView {
+  text: string;
+  model: string;
+  createdAt: string;
+  /** 本次请求实际发送的上下文摘要，便于用户核对没有隐私字段 */
+  sentSummary: string;
+}
+
+export function emptyAiConfig(): AiConfig {
+  return {
+    endpoint: 'https://api.deepseek.com/chat/completions',
+    model: 'deepseek-chat',
+    apiKey: '',
+    enabled: false
+  };
+}
+
+/** 密钥展示用掩码：只保留后四位。 */
+export function maskKey(key: string): string {
+  if (key.length === 0) {
+    return '未填写';
+  }
+  if (key.length <= 4) {
+    return '••••';
+  }
+  return `••••${key.substring(key.length - 4)}`;
+}

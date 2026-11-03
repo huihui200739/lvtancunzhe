@@ -39,15 +39,15 @@ struct ParticipationPage {
       SubpageHeader({ title: '记下这次参与' })
       Scroll() {
         Column({ space: 20 }) {
-          PageIntro({ title: '行动本身，也值得记下', subtitle: '这是一项参与任务，不生成碳减排数值。', eyebrow: '七日计划 / 参与记录' })
+          PageIntro({ title: '记录计划参与', subtitle: '仅记录参与情况与积分，不生成减排数值。', eyebrow: '计划任务' })
           if (this.task !== null) {
             Column({ space: 12 }) {
               Text(this.task.name).fontSize(20).fontColor(Theme.ink).width('100%')
               Text(`安排日期 ${this.task.day}`).fontSize(12).fontColor(Theme.muted).width('100%')
               Text(this.task.reason).fontSize(13).lineHeight(23).fontColor(Theme.muted).width('100%')
-            }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24)
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
             TextArea({ text: this.evidence, placeholder: '写下这次完成的行为、数量和完成方式，留下可以回看的参与说明。' })
-              .fontSize(14).height(160).padding(18).backgroundColor(Theme.paper).borderRadius(22).maxLength(500)
+              .fontSize(14).height(160).padding(16).backgroundColor(Theme.paper).borderRadius(Theme.controlRadius).maxLength(500)
               .onChange((v: string) => { this.evidence = v; })
             Row({ space: 12 }) {
               Checkbox({ name: 'participation' }).select(this.confirmed).selectedColor(Theme.green)
@@ -61,7 +61,7 @@ struct ParticipationPage {
               .onClick(() => this.save())
           }
           if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
-        }.width('100%').padding({ left: 22, right: 22, bottom: 30 }).alignItems(HorizontalAlign.Start)
+        }.width('100%').padding({ left: 24, right: 24, bottom: 24 }).alignItems(HorizontalAlign.Start)
       }.width('100%').layoutWeight(1).scrollBar(BarState.Off)
     }.width('100%').height('100%').backgroundColor(Theme.bg)
   }

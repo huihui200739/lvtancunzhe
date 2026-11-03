@@ -10,7 +10,8 @@ import { RecordDraft, VoucherFactorSource, VoucherView } from '../models/RecordM
 import { ScenarioInput, ScenarioResult } from '../models/CalcModels';
 import { Result } from '../common/AppError';
 import { BaselineType, BehaviorCategory, RecordStatus, SCOPE_STATEMENT, ScenarioRole, categoryName, gasUnitLabel } from '../common/Domain';
-import { NumUtil } from '../common/Format';
+import { NumUtil, DateUtil } from '../common/Format';
+import { LocalMockBenefitService, MockBenefitReceipt } from '../services/LocalMockBenefitService';
 
 /**
  * 凭证页（第 5.3 节字段顺序：行为 → 对照 → 计算 → 来源 → 范围 → 变更）。
@@ -32,6 +33,9 @@ struct VoucherPage {
   @State revisePassengers: string = '1';
   @State reviseDate: string = '';
   @State message: string = '';
+  @State mockBusy: boolean = false;
+  @State mockMessage: string = '';
+  @State mockReceipt: MockBenefitReceipt | null = null;
 
   aboutToAppear(): void {
     const p = router.getParams() as VoucherParams;
@@ -49,6 +53,13 @@ struct VoucherPage {
       return;
     }
     this.view = res.data;
+    const decision = LocalMockBenefitService.evaluate(res.data);
+    if (decision.eligible) {
+      const prior = LocalMockBenefitService.query(decision.requestId);
+      this.mockReceipt = prior.ok ? prior.data : null;
+    } else {
+      this.mockReceipt = null;
+    }
     this.reviseQty = `${res.data.record.quantity}`;
     this.reviseDate = res.data.record.occurredAt;
     for (const scenario of res.data.scenarios) {
@@ -182,6 +193,61 @@ struct VoucherPage {
     return this.view.snapshot.evidenceLabel;
   }
 
+  private canRunMock(): boolean {
+    return this.view !== null && LocalMockBenefitService.evaluate(this.view).eligible;
+  }
+
+  private mockEligibilityText(): string {
+    if (this.view === null) { return ''; }
+    const decision = LocalMockBenefitService.evaluate(this.view);
+    return decision.eligible ? `符合本地接口演练条件 · ${NumUtil.show(decision.amountKg)} ${gasUnitLabel(this.view.snapshot.gasScope)}` : `当前凭证暂不能演练：${decision.reason}`;
+  }
+
+  private async runMockSubmission(): Promise<void> {
+    if (this.mockBusy || this.view === null) { return; }
+    const decision = LocalMockBenefitService.evaluate(this.view);
+    if (!decision.eligible) { this.mockMessage = decision.reason; return; }
+    const confirm = await promptAction.showDialog({
+      title: '本地接口演练',
+      message: `按当前凭证生成一份内存模拟回执，金额 ${NumUtil.show(this.view.snapshot.reductionKg)} ${gasUnitLabel(this.view.snapshot.gasScope)}。不会联网，也不写入账本或积分。`,
+      buttons: [
+        { text: '取消', color: Theme.muted },
+        { text: '开始模拟', color: Theme.green }
+      ]
+    });
+    if (confirm.index !== 1) { return; }
+    this.mockBusy = true;
+    this.mockMessage = '';
+    try {
+      const submitted = LocalMockBenefitService.submit(this.view, DateUtil.toDateTime(new Date()));
+      if (!submitted.ok || submitted.data === null) {
+        this.mockMessage = submitted.message;
+        return;
+      }
+      this.mockReceipt = submitted.data;
+      const queried = LocalMockBenefitService.query(submitted.data.requestId);
+      if (queried.ok && queried.data !== null) { this.mockReceipt = queried.data; }
+      this.mockMessage = '模拟提交与回执查询已完成；结果仅保留在本次应用进程内。';
+    } catch (e) {
+      this.mockMessage = `模拟演练失败：${(e as Error).message}`;
+    } finally {
+      this.mockBusy = false;
+    }
+  }
+
+  private queryMockReceipt(): void {
+    if (this.view === null) { return; }
+    const decision = LocalMockBenefitService.evaluate(this.view);
+    const queried = LocalMockBenefitService.query(decision.requestId);
+    if (!queried.ok || queried.data === null) {
+      this.mockMessage = queried.message;
+      this.mockReceipt = null;
+      return;
+    }
+    this.mockReceipt = queried.data;
+    this.mockMessage = '已查询本次运行中的本地模拟回执。';
+  }
+
   build() {
     Column() {
       SubpageHeader({ title: '这笔行动的减排凭证' })
@@ -192,7 +258,7 @@ struct VoucherPage {
           Column() {
             Column({ space: 14 }) {
               Row() {
-                Text('GREEN RECEIPT').fontSize(10).letterSpacing(2).fontColor('#BFCEC1').layoutWeight(1)
+                Text('可追溯凭证').fontSize(12).fontColor('#BFCEC1').layoutWeight(1)
                 AppIcon({ name: 'leaf', iconSize: 24 })
               }.width('100%')
               Text(`${categoryName(this.view.record.category)} · ${this.view.record.quantity} ${this.view.record.unit}`)
@@ -200,7 +266,7 @@ struct VoucherPage {
               Text(this.view.record.status === RecordStatus.VOIDED ? '这笔记录已撤销' : (this.view.snapshot.isNetIncrease ? '相对基准增加排放' : '相对基准的估算减排'))
                 .fontSize(12).fontColor('#BFCEC1').width('100%').margin({ top: 10 })
               Row({ space: 8 }) {
-                Text(NumUtil.signed(this.view.snapshot.reductionKg, 2)).fontSize(44).fontColor(Theme.lime).fontWeight(FontWeight.Medium)
+                Text(NumUtil.signed(this.view.snapshot.reductionKg, 2)).fontSize(44).fontColor(Theme.lime).fontWeight(FontWeight.Medium).fontFeature('"tnum" on')
                 Text(gasUnitLabel(this.view.snapshot.gasScope)).fontSize(12).fontColor('#BFCEC1').margin({ top: 20 })
               }.width('100%')
               Divider().color('#527365').margin({ top: 8, bottom: 8 })
@@ -209,8 +275,8 @@ struct VoucherPage {
                 Text(`积分 ${this.view.pointDelta > 0 ? '+' : ''}${this.view.pointDelta} · v${this.view.record.revision}`)
                   .fontSize(12).fontColor('#BFCEC1')
               }.width('100%')
-            }.width('100%').padding(24).backgroundColor(Theme.green).borderRadius(28)
-            SectionHeading({ title: '从哪里，算到哪里' })
+            }.width('100%').padding(24).backgroundColor(Theme.green).borderRadius(Theme.heroRadius)
+            SectionHeading({ title: '对照情景与排放' })
             Column({ space: 14 }) {
               ForEach(this.view.scenarios, (s: ScenarioResult) => {
                 Row({ space: 12 }) {
@@ -224,7 +290,7 @@ struct VoucherPage {
               }, (s: ScenarioResult, i: number) => `${this.revision}-${i}-${s.factorCode}`)
               Text(this.view.snapshot.baselineType === BaselineType.USER_DECLARED ? '基准来自你声明的替代情景' : '基准按所选方法和适用情景设置')
                 .fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%')
-            }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24)
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
             if (this.view.record.category === BehaviorCategory.TRAVEL) {
               Button(this.swapped ? '收起对照试算' : '换个对照，看看会怎样').fontSize(13).height(48).width('100%')
                 .fontColor(Theme.green).backgroundColor(Theme.sage).margin({ top: 16 }).onClick(() => { this.swapped = !this.swapped; })
@@ -235,33 +301,53 @@ struct VoucherPage {
             Row() {
               Text('每一步计算，都可追溯').fontSize(15).fontColor(Theme.ink).layoutWeight(1)
               Text(this.showDetails ? '收起 ↑' : '展开 ↓').fontSize(12).fontColor(Theme.muted)
-            }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24).margin({ top: 22 })
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 22 })
               .onClick(() => { this.showDetails = !this.showDetails; })
             if (this.showDetails) {
               Column({ space: 12 }) {
                 Text(this.view.snapshot.formulaText).fontSize(12).lineHeight(23).fontColor(Theme.ink).width('100%')
                 Text(`公式 ${this.view.snapshot.formulaVersion} · ${this.view.snapshot.roundingNote}`).fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%')
                 Text(`备注依据：${this.view.record.remark}\n记录 ${this.view.record.recordId}\n创建 ${this.view.record.createdAt}\n更新 ${this.view.record.updatedAt}\n${this.evidence()}`)
-                  .fontSize(10).lineHeight(20).fontColor(Theme.muted).width('100%')
-              }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24).margin({ top: 10 })
+                  .fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%')
+              }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
             }
             Row() {
               Text('数值的来处').fontSize(15).fontColor(Theme.ink).layoutWeight(1)
               Text(this.showSources ? '收起 ↑' : '来源与边界 ↓').fontSize(12).fontColor(Theme.muted)
-            }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24).margin({ top: 10 })
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
               .onClick(() => { this.showSources = !this.showSources; })
             if (this.showSources) {
               ForEach(this.view.sources, (f: VoucherFactorSource) => {
                 Column({ space: 10 }) {
                   Text(f.factorName).fontSize(15).fontColor(Theme.ink).width('100%')
-                  Text(`${f.region} · ${f.dataYear} · ${f.factorCode}@${f.factorVersion}`).fontSize(10).fontColor(Theme.muted).width('100%')
+                  Text(`${f.region} · ${f.dataYear} · ${f.factorCode}@${f.factorVersion}`).fontSize(11).fontColor(Theme.muted).width('100%')
                   Text(`${f.sourceTitle}\n${f.sourceLocator}\n${f.sourceUrl}`).fontSize(11).lineHeight(21).fontColor(Theme.muted).width('100%')
                   Text(`边界：${f.boundary}\n方法：${f.methodology}\n${f.applicabilityNote || ''}${f.applicabilityNote ? (f.applicabilityConfirmed ? '（适用条件由用户确认，依据见备注）' : '（未确认）') : ''}`).fontSize(11).lineHeight(21).fontColor(Theme.muted).width('100%')
-                  Text(`${f.reviewStatus === 'verified' ? '原文数值已核对' : '未核验 · 仅供开发'} · ${f.licenseNote}`).fontSize(10).lineHeight(20).fontColor(Theme.rust).width('100%')
-                }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(24).margin({ top: 10 })
+                  Text(`${f.reviewStatus === 'verified' ? '原文数值已核对' : '未核验 · 仅供开发'} · ${f.licenseNote}`).fontSize(11).lineHeight(20).fontColor(Theme.rust).width('100%')
+                }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
               }, (f: VoucherFactorSource, i: number) => `${this.revision}-${i}-${f.factorCode}`)
             }
             Text(this.view.snapshot.scopeNote).fontSize(11).lineHeight(21).fontColor(Theme.muted).width('100%').margin({ top: 22 })
+            SectionHeading({ title: '校园碳普惠接口演练', detail: '离线模拟' })
+            Notice({ text: '仅用当前凭证演练本地请求与回执；不会联网、提交真实平台、写入账本或发放积分。模拟回执仅保留在本次应用进程内，不是经核证碳资产。', warning: true })
+              .margin({ top: 4, bottom: 10 })
+            Text(this.mockEligibilityText()).fontSize(12).lineHeight(19)
+              .fontColor(this.canRunMock() ? Theme.green : Theme.rust).width('100%')
+            Button(this.mockBusy ? '正在模拟…' : '模拟提交并查询回执').height(46).fontSize(13).width('100%')
+              .backgroundColor(Theme.green).enabled(this.canRunMock() && !this.mockBusy)
+              .margin({ top: 10 }).onClick(() => this.runMockSubmission())
+            if (this.mockReceipt !== null) {
+              Column({ space: 8 }) {
+                Text(this.mockReceipt.platformName).fontSize(13).fontWeight(FontWeight.Medium).fontColor(Theme.ink).width('100%')
+                Text(`状态：${this.mockReceipt.status} · ${NumUtil.show(this.mockReceipt.amountKg)} ${this.mockReceipt.unit}`)
+                  .fontSize(12).lineHeight(19).fontColor(Theme.green).width('100%')
+                Text(`本地请求编号：${this.mockReceipt.requestId}\n模拟时间：${this.mockReceipt.createdAt}\n${this.mockReceipt.notice}`)
+                  .fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%')
+                Button('重新查询模拟回执').height(40).fontSize(12).fontColor(Theme.green).backgroundColor(Theme.sage)
+                  .onClick(() => this.queryMockReceipt())
+              }.width('100%').padding(16).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
+            }
+            if (this.mockMessage.length > 0) { Notice({ text: this.mockMessage }).margin({ top: 10 }) }
             if (this.view.record.status === RecordStatus.ACTIVE && this.view.isLatest) {
               if (this.revising) {
                 Column({ space: 12 }) {
@@ -291,28 +377,9 @@ struct VoucherPage {
             }
             if (this.message.length > 0) { Notice({ text: this.message, warning: true }).margin({ top: 14 }) }
             Text('每一笔改变，都经得起回看。').fontSize(11).fontColor(Theme.muted).width('100%').textAlign(TextAlign.Center).margin({ top: 28, bottom: 30 })
-          }.width('100%').padding({ left: 22, right: 22, top: 14 }).alignItems(HorizontalAlign.Start)
+          }.width('100%').padding({ left: 24, right: 24, top: 16 }).alignItems(HorizontalAlign.Start)
         }.layoutWeight(1).width('100%').align(Alignment.TopStart).scrollBar(BarState.Off)
       }
     }.width('100%').height('100%').backgroundColor(Theme.bg)
-  }
-
-  @Builder
-  section(t: string) {
-    Text(t)
-      .fontSize(14)
-      .fontWeight(FontWeight.Medium)
-      .width('100%')
-      .margin({ top: 12, bottom: 4 })
-  }
-
-  @Builder
-  kv(k: string, v: string) {
-    Row() {
-      Text(k).fontSize(12).fontColor('#888888').width(90)
-      Text(v).fontSize(12).fontColor('#333333').layoutWeight(1)
-    }
-    .width('100%')
-    .margin({ bottom: 3 })
   }
 }

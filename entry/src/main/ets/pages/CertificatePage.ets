@@ -54,32 +54,32 @@ struct CertificatePage {
 
   build() {
     Column() {
-      SubpageHeader({ title: '收藏这一份坚持' })
+      SubpageHeader({ title: '成就证书' })
       if (this.cert === null) {
         EmptyState({ title: '正在准备你的成就', detail: this.message }).margin(22)
       } else {
         Scroll() {
           Column({ space: 22 }) {
             Column({ space: 18 }) {
-              Text('GREEN ACHIEVEMENT').fontSize(10).letterSpacing(3).fontColor(Theme.muted)
+              Text('虚拟成就').fontSize(12).fontColor(Theme.muted)
               Image($r('app.media.botanical')).width(140).height(210).objectFit(ImageFit.Contain).accessibilityLevel('no')
               Text('你的小小坚持\n正在长成一片绿').fontSize(26).lineHeight(38).fontWeight(FontWeight.Medium).fontColor(Theme.ink).textAlign(TextAlign.Center)
               Text(this.cert.rewardName).fontSize(15).fontColor(Theme.green).margin({ top: 4 })
               Text('应用内虚拟成就证书').fontSize(11).fontColor(Theme.muted)
               Divider().color(Theme.line).margin({ top: 10, bottom: 8 })
-              Text(this.cert.serial).fontSize(10).fontColor(Theme.muted).textAlign(TextAlign.Center)
+              Text(this.cert.serial).fontSize(11).fontColor(Theme.muted).textAlign(TextAlign.Center)
               Text(this.cert.issuedAt).fontSize(11).fontColor(Theme.muted)
-            }.width('100%').padding({ left: 28, right: 28, top: 30, bottom: 28 }).backgroundColor(Theme.paper).borderRadius(28)
+            }.width('100%').padding({ left: 24, right: 24, top: 32, bottom: 24 }).backgroundColor(Theme.paper).borderRadius(Theme.panelRadius)
               .border({ width: 1, color: Theme.line })
             Column({ space: 12 }) {
               Text('此刻，存折里的绿色足迹').fontSize(16).fontColor(Theme.ink).width('100%')
               Text(this.cert.reductionSummary).fontSize(22).fontWeight(FontWeight.Medium).fontColor(Theme.green).width('100%')
               Text(`${this.cert.recordCount} 条有效记录 · 不同气体口径分别列示`).fontSize(11).fontColor(Theme.muted).width('100%')
-            }.width('100%').padding(22).backgroundColor(Theme.sage).borderRadius(24)
+            }.width('100%').padding(20).backgroundColor(Theme.sage).borderRadius(Theme.cardRadius)
             Text(this.cert.disclaimer).fontSize(12).lineHeight(21).fontColor(Theme.muted).width('100%')
             Button('保存证书文字到文件').height(52).fontSize(14).backgroundColor(Theme.green).width('100%').onClick(() => this.save())
-            Text('虚拟成就，不代表真实植树或正式碳权益。').fontSize(10).fontColor(Theme.muted).margin({ bottom: 12 })
-          }.width('100%').padding({ left: 22, right: 22, top: 14, bottom: 24 })
+            Text('虚拟成就，不代表真实植树或正式碳权益。').fontSize(11).fontColor(Theme.muted).margin({ bottom: 12 })
+          }.width('100%').padding({ left: 24, right: 24, top: 14, bottom: 24 })
         }.layoutWeight(1).width('100%').align(Alignment.TopStart).scrollBar(BarState.Off)
       }
     }.width('100%').height('100%').backgroundColor(Theme.bg)

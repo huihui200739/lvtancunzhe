@@ -18,6 +18,9 @@ import { TimeDimension, ReviewStatus } from '../common/Domain';
 import { DateUtil, NumUtil } from '../common/Format';
 import { Ids } from '../common/Ids';
 import { APP_VERSION } from '../common/BuildConfig';
+import { WeeklyReportService } from '../services/WeeklyReportService';
+import { AiConfig, maskKey } from '../models/AiModels';
+import { AiConfigStore } from '../services/AiConfigStore';
 
 interface BadgeRow {
   def: BadgeDef;
@@ -68,6 +71,7 @@ export struct ProfileTab {
   @State status: string = '';
   @State checks: CheckResult[] = [];
   @State selfCheckRan: boolean = false;
+  @State aiConfig: AiConfig | null = null;
   /** 兑换 in-flight 守卫（T03 观察项③）：连点只发一次请求 */
   private redeeming: boolean = false;
 
@@ -90,6 +94,7 @@ export struct ProfileTab {
     }
     const db = LedgerDb.get();
     this.testMode = AppService.repo().isUsingTestData();
+    this.aiConfig = await AiConfigStore.load(this.context());
     try {
       const defs: BadgeDef[] = await db.listBadgeDefs();
       const unlocks: BadgeUnlock[] = await db.listBadgeUnlocks();
@@ -227,6 +232,44 @@ export struct ProfileTab {
     this.toast(saved.ok ? `已导出：${name}` : saved.message);
   }
 
+  private async shareWeeklyReport(): Promise<void> {
+    if (this.dataBusy || !AppService.isReady()) { return; }
+    this.dataBusy = true;
+    try {
+      const result = await WeeklyReportService.buildWeeklyReport(LedgerDb.get());
+      if (!result.ok || result.data === null) {
+        this.toast(result.message);
+        return;
+      }
+      const choice = await promptAction.showDialog({
+        title: '七日行动回顾',
+        message: result.data,
+        buttons: [
+          { text: '关闭', color: Theme.muted },
+          { text: '保存为文本', color: Theme.green }
+        ]
+      });
+      if (choice.index !== 1) { return; }
+      const filename = `lvtancunzhe_week_${DateUtil.today()}.txt`;
+      const saved = await BackupService.saveAs(this.context(), filename, result.data);
+      this.toast(saved.ok ? `周报已保存：${filename}` : saved.message);
+    } catch (e) {
+      this.toast(`周报未生成：${(e as Error).message}`);
+    } finally {
+      this.dataBusy = false;
+    }
+  }
+
+  private aiStatusText(): string {
+    if (this.aiConfig === null) {
+      return '可选联网功能，默认关闭';
+    }
+    if (this.aiConfig.apiKey.length === 0) {
+      return '未填写 API Key · 点击配置';
+    }
+    return this.aiConfig.enabled ? `已开启 · ${maskKey(this.aiConfig.apiKey)} · ${this.aiConfig.model}` : `已填写密钥但未开启 · ${maskKey(this.aiConfig.apiKey)}`;
+  }
+
   private async runSelfCheck(): Promise<void> {
     if (!AppService.isReady()) {
       this.message = '数据库尚未就绪。';
@@ -265,32 +308,32 @@ export struct ProfileTab {
   build() {
     Scroll() {
       Column() {
-        PageIntro({ title: '我的绿色收藏', subtitle: '把认真生活的痕迹，好好收藏起来。', eyebrow: '每一步，都值得 / MY GARDEN' })
+        PageIntro({ title: '积分与奖励', subtitle: '查看徽章、虚拟奖励和账本数据。', eyebrow: '个人账本' })
         Row() {
           Column({ space: 10 }) {
-            Text('一点坚持，一点回响').fontSize(13).fontColor('#BFCEC1')
+            Text('积分用于应用内奖励').fontSize(13).fontColor('#BFCEC1')
             Row({ space: 8 }) {
-              Text(`${this.balance}`).fontSize(44).fontWeight(FontWeight.Medium).fontColor(Theme.lime)
+              Text(`${this.balance}`).fontSize(44).fontWeight(FontWeight.Medium).fontColor(Theme.lime).fontFeature('"tnum" on')
                 .maxLines(1).minFontSize(20).maxFontSize(44).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).flexShrink(1).constraintSize({ maxWidth: '60%' })
               Text('可用积分').fontSize(12).fontColor('#BFCEC1').margin({ top: 18 }).flexShrink(0)
             }.width('100%')
-            Text('积分用于应用内虚拟奖励，无现金价值').fontSize(10).fontColor('#BFCEC1')
+            Text('积分用于应用内虚拟奖励，无现金价值').fontSize(11).fontColor('#BFCEC1')
           }.layoutWeight(1).alignItems(HorizontalAlign.Start)
           AppIcon({ name: 'badge', iconSize: 52, color: Theme.lime })
-        }.width('100%').padding(24).backgroundColor(Theme.green).borderRadius(28)
+        }.width('100%').padding(20).backgroundColor(Theme.green).borderRadius(Theme.panelRadius)
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }).margin({ top: 16 }) }
         if (this.status.length > 0) { Notice({ text: this.status }).margin({ top: 16 }) }
         SectionHeading({ title: '慢慢点亮的成就', detail: '我的徽章' })
-        Flex({ wrap: FlexWrap.Wrap }) {
+        Column() {
           ForEach(this.badges, (b: BadgeRow) => {
-            Column({ space: 10 }) {
-              AppIcon({ name: 'badge', iconSize: 30, color: b.unlocked ? Theme.green : '#B2BDAA' })
-              Text(b.def.name).fontSize(12).fontColor(b.unlocked ? Theme.ink : Theme.muted).maxLines(2).textAlign(TextAlign.Center)
-              Text(b.unlocked ? '已点亮' : '等待生长').fontSize(10).fontColor(Theme.muted)
-            }.width('31%').height(132).padding(12).margin({ right: '2%', bottom: 10 })
-              .backgroundColor(b.unlocked ? Theme.sage : Theme.paper).borderRadius(22).justifyContent(FlexAlign.Center)
+            Row({ space: 12 }) {
+              AppIcon({ name: 'badge', iconSize: 20, color: b.unlocked ? Theme.green : '#B2BDAA' })
+              Text(b.def.name).fontSize(14).fontColor(b.unlocked ? Theme.ink : Theme.muted).layoutWeight(1)
+              Text(b.unlocked ? '已点亮' : '等待生长').fontSize(11).fontColor(b.unlocked ? Theme.green : Theme.muted)
+            }.width('100%').padding({ top: 14, bottom: 14 })
+            Divider().color(Theme.line)
           }, (b: BadgeRow) => `${b.def.badgeId}-${b.unlocked}`)
-        }.width('100%')
+        }.width('100%').padding({ left: 20, right: 20 }).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
         SectionHeading({ title: '给坚持，一份小奖励', detail: '虚拟权益' })
         ForEach(this.rewards, (r: RewardRow) => {
           Row({ space: 12 }) {
@@ -300,7 +343,7 @@ export struct ProfileTab {
             }.layoutWeight(1)
             Button(`${r.def.price} 分`).fontSize(12).height(42).fontColor(Theme.green).backgroundColor(Theme.sage)
               .onClick(() => { this.doRedeem(r.def.rewardId); })
-          }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(22).margin({ bottom: 12 })
+          }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ bottom: 12 })
         }, (r: RewardRow) => r.def.rewardId)
         if (this.redemptions.length > 0) {
           SectionHeading({ title: '已收藏的奖励', detail: `${this.redemptions.length} 份` })
@@ -309,13 +352,27 @@ export struct ProfileTab {
               AppIcon({ name: 'leaf', iconSize: 24 })
               Column({ space: 7 }) {
                 Text(r.rewardName).fontSize(14).fontColor(Theme.ink)
-                Text(`${r.redemption.createdAt.substring(0, 10)} · ${r.redemption.price} 积分`).fontSize(10).fontColor(Theme.muted)
+                Text(`${r.redemption.createdAt.substring(0, 10)} · ${r.redemption.price} 积分`).fontSize(11).fontColor(Theme.muted)
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               AppIcon({ name: 'arrow', iconSize: 18 })
-            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(22).margin({ bottom: 10 })
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ bottom: 10 })
               .onClick(() => router.pushUrl({ url: 'pages/CertificatePage', params: { redemptionId: r.redemption.redemptionId } }))
           }, (r: RedemptionView) => r.redemption.redemptionId)
         }
+        SectionHeading({ title: '一周行动回顾', detail: '本地汇总' })
+        Text('只包含统计周期、分类汇总与估算边界；不包含记录编号、备注或个人身份。').fontSize(11).lineHeight(19)
+          .fontColor(Theme.muted).width('100%').margin({ bottom: 10 })
+        Button(this.dataBusy ? '正在生成…' : '查看并保存七日周报').height(46).fontSize(13).width('100%')
+          .fontColor(Theme.green).backgroundColor(Theme.sage).enabled(!this.dataBusy)
+          .onClick(() => this.shareWeeklyReport())
+        Row() {
+          Column({ space: 4 }) {
+            Text('AI 行动教练').fontSize(14).fontColor(Theme.ink).width('100%')
+            Text(this.aiStatusText()).fontSize(11).fontColor(Theme.muted).width('100%')
+          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+          AppIcon({ name: 'arrow', iconSize: 18 })
+        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ bottom: 10 })
+          .onClick(() => router.pushUrl({ url: 'pages/AiSettingsPage' }))
         SectionHeading({ title: '按自己的节奏' })
         Row() {
           Column({ space: 6 }) {
@@ -324,13 +381,13 @@ export struct ProfileTab {
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
           Toggle({ type: ToggleType.Switch, isOn: this.gentleMotion }).selectedColor(Theme.green)
             .onChange((v: boolean) => { this.gentleMotion = v; })
-        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(22)
+        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
         // T05：整行热区（Toggle 视觉尺寸 36x20vp 偏小；点击行任意位置均可切换）
         .onClick(() => { this.gentleMotion = !this.gentleMotion; })
         Row() {
           Text('我的数据').fontSize(14).fontColor(Theme.ink).layoutWeight(1)
           Text(this.showData ? '收起 ↑' : '备份与导出 ↓').fontSize(12).fontColor(Theme.muted)
-        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(22).margin({ top: 10 })
+        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
           .onClick(() => { this.showData = !this.showData; })
         if (this.showData) {
           Column({ space: 12 }) {
@@ -349,7 +406,7 @@ export struct ProfileTab {
         Row() {
           Text('每一个数值，都有来处').fontSize(14).fontColor(Theme.ink).layoutWeight(1)
           Text(this.showSources ? '收起 ↑' : '因子与来源 ↓').fontSize(12).fontColor(Theme.muted)
-        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(22).margin({ top: 10 })
+        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
           .onClick(() => { this.showSources = !this.showSources; })
         if (this.showSources) {
           ForEach(this.factors, (f: CarbonFactor) => {
@@ -357,15 +414,15 @@ export struct ProfileTab {
               Text(f.scenarioLabel).fontSize(14).fontColor(Theme.ink).width('100%')
               Text(`${f.value} ${factorUnitText(f)} · ${f.region} · ${f.dataYear}`).fontSize(11).fontColor(Theme.muted).width('100%')
               Text(`${f.sourceTitle} · ${f.sourceLocator}`).fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%')
-              Text(f.reviewStatus === ReviewStatus.VERIFIED ? '原文数值已核对' : '未核验 · 仅供开发联调').fontSize(10)
+              Text(f.reviewStatus === ReviewStatus.VERIFIED ? '原文数值已核对' : '未核验 · 仅供开发联调').fontSize(11)
                 .fontColor(f.reviewStatus === ReviewStatus.VERIFIED ? Theme.green : Theme.rust).width('100%')
-            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(20).margin({ top: 10 })
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
           }, (f: CarbonFactor) => `${f.code}@${f.version}`)
         }
         Row() {
           Text('账本健康检查').fontSize(14).fontColor(Theme.ink).layoutWeight(1)
           Text(this.showChecks ? '收起 ↑' : '展开 ↓').fontSize(12).fontColor(Theme.muted)
-        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(22).margin({ top: 10 })
+        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
           .onClick(() => { this.showChecks = !this.showChecks; })
         if (this.showChecks) {
           Button(this.checking ? '正在检查…' : '检查计算与账目规则').height(46).fontSize(13).width('100%').backgroundColor(Theme.green)
@@ -379,9 +436,9 @@ export struct ProfileTab {
           }, (c: CheckResult, i: number) => `${i}-${c.name}`)
         }
         if (this.testMode) { Notice({ text: '开发预览 · 未核验因子仅供联调，不得用于参赛材料与对外结论。', warning: true }).margin({ top: 20 }) }
-        Text(`绿碳存折 ${APP_VERSION}\n只记录局部行为估算，不代表完整个人碳足迹。`).fontSize(10).lineHeight(20).fontColor(Theme.muted)
+        Text(`绿碳存折 ${APP_VERSION}\n只记录局部行为估算，不代表完整个人碳足迹。`).fontSize(11).lineHeight(20).fontColor(Theme.muted)
           .textAlign(TextAlign.Center).width('100%').margin({ top: 28, bottom: 30 })
-      }.width('100%').padding({ left: 22, right: 22 }).alignItems(HorizontalAlign.Start)
+      }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).scrollBar(BarState.Off).backgroundColor(Theme.bg)
   }
 }

@@ -4,6 +4,7 @@
     "pages/RecordEntry",
     "pages/VoucherPage",
     "pages/CertificatePage",
-    "pages/ParticipationPage"
+    "pages/ParticipationPage",
+    "pages/AiSettingsPage"
   ]
 }

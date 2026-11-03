@@ -5,11 +5,15 @@ import { router } from '@kit.ArkUI';
 import { LedgerDb } from '../services/LedgerDb';
 import { AppService } from '../services/AppService';
 import { PlanService } from '../services/PlanService';
+import { ActionCoachService, ActionRecommendation } from '../services/ActionCoachService';
 import { PlanDraftState } from '../services/PlanDraftState';
 import { QuantityField } from './QuantityField';
 import { PlanConstraints, PlanOutcome, PlanTask } from '../models/PlanModels';
 import { BehaviorCategory, PlanTaskStatus, categoryName } from '../common/Domain';
 import { DateUtil, NumUtil } from '../common/Format';
+import { AiConfig, AiSuggestionView } from '../models/AiModels';
+import { AiConfigStore } from '../services/AiConfigStore';
+import { AiCoachService } from '../services/AiCoachService';
 
 function emptyOutcome(): PlanOutcome {
   return {
@@ -60,6 +64,10 @@ export struct PlanTab {
   @State showTrace: boolean = false;
   @State message: string = '';
   @State savedFormKey: string = '';
+  @State aiConfig: AiConfig | null = null;
+  @State aiBusy: boolean = false;
+  @State aiSuggestion: AiSuggestionView | null = null;
+  @State aiMessage: string = '';
 
   private catOptions: KeyLabel[] = [
     { key: 'travel', label: '出行' },
@@ -78,6 +86,7 @@ export struct PlanTab {
 
   aboutToAppear(): void {
     this.loadLatest();
+    AiConfigStore.load(getContext(this)).then((config: AiConfig) => { this.aiConfig = config; });
   }
 
   onTick(): void {
@@ -243,14 +252,45 @@ export struct PlanTab {
     return '计划中';
   }
 
+  /** 仅整理当前已保存计划中的今日及未来六天待办，不产生写入或完成状态。 */
+  private actionRecommendations(): ActionRecommendation[] {
+    if (!this.hasOutcome || this.outcome.plan === null) {
+      return [];
+    }
+    return ActionCoachService.recommend(this.outcome.tasks, DateUtil.today(), 3);
+  }
+
+  private openActionRecommendation(action: ActionRecommendation): void {
+    router.pushUrl({
+      url: action.participationOnly ? 'pages/ParticipationPage' : 'pages/RecordEntry',
+      params: { planTaskId: action.planTaskId, category: action.category }
+    });
+  }
+
+  @Builder
+  actionRecommendationRow(action: ActionRecommendation) {
+    Row({ space: 12 }) {
+      Column({ space: 4 }) {
+        Text(action.title).fontSize(15).fontColor(Theme.ink).width('100%')
+        Text(action.participationOnly
+          ? `${categoryName(action.category as BehaviorCategory)} · 参与任务，不计减排量`
+          : `${categoryName(action.category as BehaviorCategory)} · 预计 ${NumUtil.show(action.expectedKg)} ${this.planUnit()} · 额外 ${action.extraMinutes} 分钟`)
+          .fontSize(11).lineHeight(17).fontColor(Theme.muted).width('100%')
+      }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+      Text(action.isToday ? '今天' : action.day.substring(5)).fontSize(11).fontColor(Theme.green).flexShrink(0)
+    }
+    .width('100%').padding({ top: 14, bottom: 14 }).alignItems(VerticalAlign.Top)
+    .onClick(() => this.openActionRecommendation(action))
+  }
+
   build() {
     Scroll() {
       Column() {
-        PageIntro({ title: '把改变，放进这七天', subtitle: '从你愿意做的事开始，找到适合自己的节奏。', eyebrow: '我的行动计划 / 07 DAYS' })
+        PageIntro({ title: '安排接下来七天', subtitle: '按目标、时间与费用生成行动建议。', eyebrow: '七日计划' })
         Column({ space: 14 }) {
           Row() {
             AppIcon({ name: 'plan', iconSize: 24 })
-            Text('为这一周，定个小目标').fontSize(17).fontWeight(FontWeight.Medium).fontColor(Theme.ink).margin({ left: 10 })
+            Text('设置七日目标').fontSize(17).fontWeight(FontWeight.Medium).fontColor(Theme.ink).margin({ left: 10 })
           }.width('100%')
           QuantityField({ value: $targetText, unit: 'kg / 七天', label: '计划目标' })
           Text('预计减排目标 · 每份计划只使用一种气体口径').fontSize(11).fontColor(Theme.muted).width('100%')
@@ -337,19 +377,41 @@ export struct PlanTab {
           Button(this.generating ? '正在安排…' : (this.hasOutcome ? '重新安排这一周' : '生成我的七日计划'))
             .width('100%').height(50).fontSize(15).fontWeight(FontWeight.Medium).backgroundColor(Theme.green)
             .enabled(!this.generating).onClick(() => { this.generate(this.hasOutcome); })
-        }.width('100%').padding(22).backgroundColor(Theme.paper).borderRadius(26).alignItems(HorizontalAlign.Start)
+        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.panelRadius).alignItems(HorizontalAlign.Start)
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }).margin({ top: 16 }) }
         if (this.hasOutcome && this.outcome.tasks.length > 0) {
           SectionHeading({ title: this.draftChanged() ? '上次保存的计划' : '这一周的绿色提案', detail: `${this.outcome.tasks.filter((t: PlanTask) => t.status !== PlanTaskStatus.SKIPPED).length} 项行动` })
           Column({ space: 8 }) {
             Text(this.planPeriod()).fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%')
-            Text(`预计 ${NumUtil.show(this.outcome.plannedKg)} ${this.planUnit()}`).fontSize(26).fontColor(Theme.green).fontWeight(FontWeight.Medium)
+            Text(`预计 ${NumUtil.show(this.outcome.plannedKg)} ${this.planUnit()}`).fontSize(26).fontColor(Theme.green).fontWeight(FontWeight.Medium).fontFeature('"tnum" on')
             Text(this.outcome.targetMet ? '计划预计覆盖目标，完成后才计入实际记录' : `距离预计目标还差 ${NumUtil.show(this.outcome.gapKg)} ${this.planUnit()}`)
               .fontSize(12).lineHeight(20).fontColor(Theme.muted)
             if (this.outcome.participationCount > 0) {
               Text(`${this.outcome.participationCount} 项为参与任务，不计入预计减排目标。`).fontSize(11).fontColor(Theme.muted)
             }
-          }.width('100%').padding(22).backgroundColor(Theme.sage).borderRadius(24).alignItems(HorizontalAlign.Start)
+          }.width('100%').padding(20).backgroundColor(Theme.sage).borderRadius(Theme.cardRadius).alignItems(HorizontalAlign.Start)
+          Column({ space: 4 }) {
+            Row() {
+              Text('今天先做').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink).layoutWeight(1)
+              Text('来自已保存计划').fontSize(11).fontColor(Theme.muted)
+            }.width('100%')
+            Text('只列出今日起七天内未完成的任务；点开后由你确认记录。')
+              .fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%').margin({ bottom: 4 })
+            if (this.actionRecommendations().length > 0) {
+              ForEach(this.actionRecommendations(), (action: ActionRecommendation) => {
+                this.actionRecommendationRow(action);
+                Divider().color(Theme.line)
+              }, (action: ActionRecommendation) => action.planTaskId)
+            } else {
+              Text('当前七天内没有待完成的计划任务。')
+                .fontSize(12).lineHeight(19).fontColor(Theme.muted).width('100%').padding({ top: 12, bottom: 12 })
+            }
+          }.width('100%').margin({ top: 20, bottom: 8 })
+          if (this.aiReady()) {
+            this.aiSuggestionBlock()
+          } else {
+            this.aiEntryRow()
+          }
           ForEach(this.groups(), (g: DayGroup) => { this.dayGroup(g); }, (g: DayGroup) => this.groupKey(g))
           if (this.outcome.trace.length > 0) {
           Text(this.showTrace ? '收起安排依据 ↑' : '为什么这样安排 ↓').fontSize(12).fontColor(Theme.green)
@@ -358,7 +420,7 @@ export struct PlanTab {
             Column({ space: 10 }) {
               ForEach(this.outcome.trace, (line: string) => { Text(line).fontSize(12).lineHeight(21).fontColor(Theme.muted).width('100%') },
                 (line: string, i: number) => `${i}-${line}`)
-            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(22)
+            }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
           }
           }
         } else if (!this.hasOutcome) {
@@ -367,14 +429,73 @@ export struct PlanTab {
         }
         Text('预计值来自当前可用因子；计划不会自动生成已完成记录。').fontSize(11).lineHeight(20).fontColor(Theme.muted)
           .width('100%').margin({ top: 24, bottom: 30 })
-      }.width('100%').padding({ left: 22, right: 22 }).alignItems(HorizontalAlign.Start)
+      }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).scrollBar(BarState.Off).backgroundColor(Theme.bg)
+  }
+
+  private aiReady(): boolean {
+    return this.aiConfig !== null && this.aiConfig.enabled && this.aiConfig.apiKey.length > 0;
+  }
+
+  private async requestAiSuggestion(): Promise<void> {
+    if (this.aiBusy || this.aiConfig === null || !this.hasOutcome) { return; }
+    this.aiBusy = true;
+    this.aiMessage = '';
+    try {
+      const res = await AiCoachService.suggest(this.aiConfig, this.outcome);
+      if (!res.ok || res.data === null) {
+        this.aiSuggestion = null;
+        this.aiMessage = res.message;
+        return;
+      }
+      this.aiSuggestion = res.data;
+    } finally {
+      this.aiBusy = false;
+    }
+  }
+
+  @Builder
+  aiSuggestionBlock() {
+    Column({ space: 10 }) {
+      Row() {
+        Text('AI 补充建议').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink).layoutWeight(1)
+        Text('联网 · 可选').fontSize(11).fontColor(Theme.muted)
+      }.width('100%')
+      Text('只发送这份计划的标题、类别、日期与预计值；AI 文本不参与核算与积分。')
+        .fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%')
+      if (this.aiSuggestion !== null) {
+        Text(this.aiSuggestion.text).fontSize(14).lineHeight(24).fontColor(Theme.ink).width('100%')
+        Text(`${this.aiSuggestion.model} · ${this.aiSuggestion.createdAt} · AI 生成，仅供参考`)
+          .fontSize(11).fontColor(Theme.muted).width('100%')
+        Button('换一句').height(40).fontSize(12).fontColor(Theme.green).backgroundColor(Theme.sage)
+          .enabled(!this.aiBusy).onClick(() => this.requestAiSuggestion())
+      } else {
+        Button(this.aiBusy ? '正在请求…' : '让 AI 补充一句').height(42).fontSize(12).fontColor(Theme.green)
+          .backgroundColor(Theme.sage).enabled(!this.aiBusy).onClick(() => this.requestAiSuggestion())
+      }
+      if (this.aiMessage.length > 0) {
+        Text(this.aiMessage).fontSize(11).lineHeight(18).fontColor(Theme.rust).width('100%')
+      }
+    }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
+      .alignItems(HorizontalAlign.Start).margin({ top: 16 })
+  }
+
+  @Builder
+  aiEntryRow() {
+    Row() {
+      Column({ space: 4 }) {
+        Text('AI 补充建议').fontSize(14).fontColor(Theme.ink).width('100%')
+        Text('可选联网功能，默认关闭；在「我的」里配置 API Key').fontSize(11).fontColor(Theme.muted).width('100%')
+      }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+      AppIcon({ name: 'arrow', iconSize: 18 })
+    }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 16 })
+      .onClick(() => router.pushUrl({ url: 'pages/AiSettingsPage' }))
   }
 
   @Builder
   dayGroup(g: DayGroup) {
     Column() {
-      Text(`${g.day}`)
+      Text(this.dayLabel(g.day))
         .fontSize(13)
         .fontWeight(FontWeight.Medium)
         .width('100%')
@@ -384,6 +505,14 @@ export struct PlanTab {
       }, (t: PlanTask) => `${t.planTaskId}#${t.status}#${t.actualKg}`)
     }
     .width('100%')
+  }
+
+  /** 计划日期标签：11-03 周一；今天单独标注，便于扫读。 */
+  private dayLabel(day: string): string {
+    const d = DateUtil.parseDay(day);
+    const names: string[] = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const prefix = day === DateUtil.today() ? '今天' : day.substring(5);
+    return `${prefix} · ${names[d.getDay()]}`;
   }
 
   @Builder
@@ -448,7 +577,7 @@ export struct PlanTab {
     .width('100%')
     .padding(20)
     .backgroundColor(Theme.paper)
-    .borderRadius(22)
+    .borderRadius(Theme.cardRadius)
     .margin({ bottom: 8 })
   }
 

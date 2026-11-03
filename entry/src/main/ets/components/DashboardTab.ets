@@ -41,7 +41,7 @@ struct SummaryCell {
 
   build() {
     Column() {
-      Text(this.value).fontSize(22).fontColor(this.color).fontWeight(FontWeight.Bold)
+      Text(this.value).fontSize(22).fontColor(this.color).fontWeight(FontWeight.Medium).fontFeature('"tnum" on')
       Text(this.label).fontSize(11).fontColor(Theme.muted).margin({ top: 2 })
     }
     .layoutWeight(1)
@@ -161,7 +161,7 @@ export struct DashboardTab {
   build() {
     Scroll() {
       Column() {
-        PageIntro({ title: '看见，每一点改变', subtitle: '让记录连成轨迹，也让进步有据可循。', eyebrow: '我的绿色轨迹 / INSIGHTS' })
+        PageIntro({ title: '记录趋势', subtitle: '按日期和类别查看已记录行为的净变化。', eyebrow: '账本趋势' })
         Row({ space: 8 }) {
           ForEach(this.dims, (d: DimOption) => {
             Text(d.label).fontSize(14).fontColor(this.dimKey === d.key ? Theme.paper : Theme.muted)
@@ -172,17 +172,17 @@ export struct DashboardTab {
         }.width('100%').margin({ bottom: 20 })
         Column({ space: 20 }) {
           Row() {
-            Text('这段时间的净减排').fontSize(13).fontColor(Theme.muted).layoutWeight(1)
+            Text('这段时间的净变化').fontSize(13).fontColor(Theme.muted).layoutWeight(1)
             Text(this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂').fontSize(11).fontColor(Theme.green)
           }.width('100%')
           Text(`${this.from} — ${this.to} · ${this.appliedLabel}`).fontSize(11).fontColor(Theme.muted).width('100%')
-          Text(NumUtil.signed(this.summary.totalNetKg, 2)).fontSize(46).fontWeight(FontWeight.Medium).fontColor(Theme.green).maxLines(1).minFontSize(24).maxFontSize(46).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).width('100%')
+          Text(NumUtil.signed(this.summary.totalNetKg, 2)).fontSize(46).fontWeight(FontWeight.Medium).fontColor(Theme.green).fontFeature('"tnum" on').maxLines(1).minFontSize(24).maxFontSize(46).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).width('100%')
           Row() {
             SummaryCell({ label: '正向贡献', value: NumUtil.show(this.summary.totalPositiveKg), color: Theme.green })
             SummaryCell({ label: '增加排放', value: NumUtil.show(this.summary.totalNegativeKg), color: Theme.rust })
             SummaryCell({ label: '有效记录', value: `${this.summary.recordCount}`, color: Theme.ink })
           }.width('100%')
-        }.width('100%').padding(24).backgroundColor(Theme.sage).borderRadius(28).alignItems(HorizontalAlign.Start)
+        }.width('100%').padding(20).backgroundColor(Theme.sage).borderRadius(Theme.panelRadius).alignItems(HorizontalAlign.Start)
         if (this.summary.gasScopes.length > 1) {
           Row({ space: 10 }) {
             ForEach(this.summary.gasScopes, (scope: string) => {
@@ -221,16 +221,16 @@ export struct DashboardTab {
               Text('日期已修改，点击查看这个区间后更新统计。').fontSize(11).fontColor(Theme.rust).width('100%')
             }
             Button('查看这个区间').height(46).width('100%').fontSize(13).backgroundColor(Theme.green).onClick(() => this.reload(true))
-          }.width('100%').padding(18).backgroundColor(Theme.paper).borderRadius(22).margin({ bottom: 18 })
+          }.width('100%').padding(16).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ bottom: 18 })
         }
         if (this.loading) { Notice({ text: '正在更新统计，下方显示上次查询结果。' }) }
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
-        LineChart({ title: '01  净变化趋势', data: this.summary.buckets })
-        BarChart({ title: '02  贡献与增加排放', data: this.summary.buckets }).margin({ top: 16 })
-        PieChart({ title: '03  行动贡献分布', data: this.summary.categories }).margin({ top: 16 })
+        LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.buckets })
+        BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.buckets }).margin({ top: 16 })
+        PieChart({ title: '各类行动的正向贡献', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.categories }).margin({ top: 16 })
         Text('正值为相对基准的减排贡献，负值为增加排放。仅统计已记录的有效行为，不代表完整个人碳足迹。')
           .fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%').margin({ top: 24, bottom: 30 })
-      }.width('100%').padding({ left: 22, right: 22 }).alignItems(HorizontalAlign.Start)
+      }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).scrollBar(BarState.Off).backgroundColor(Theme.bg)
   }
 }

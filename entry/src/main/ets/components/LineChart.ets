@@ -8,35 +8,69 @@ import { StatBucket } from '../models/StatsModels';
 @Component
 export struct LineChart {
   @Prop title: string = '';
+  @Prop unit: string = 'kgCO₂';
   @Prop @Watch('onData') data: StatBucket[] = [];
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
 
+  private populatedCount(): number {
+    let count = 0;
+    for (const bucket of this.data) {
+      if (bucket.count > 0) { count++; }
+    }
+    return count;
+  }
+
+  private allNetZero(): boolean {
+    if (this.populatedCount() === 0) { return false; }
+    for (const bucket of this.data) {
+      if (bucket.count > 0 && bucket.netKg !== 0) { return false; }
+    }
+    return true;
+  }
+
   build() {
     Column() {
-      Text(this.title)
-        .fontSize(15)
-        .fontColor(Theme.ink)
-        .fontWeight(FontWeight.Medium)
-        .width('100%')
-      Canvas(this.ctx)
-        .width('100%')
-        .height(180)
-        .backgroundColor('#FFFFFF')
-        .onReady(() => {
-          this.ready = true;
-          this.draw();
-        })
+      Row() {
+        Text(this.title)
+          .fontSize(15)
+          .fontColor(Theme.ink)
+          .fontWeight(FontWeight.Medium)
+          .layoutWeight(1)
+        Text(this.unit).fontSize(11).fontColor(Theme.muted)
+      }.width('100%')
+      if (this.populatedCount() === 0) {
+        Column() {
+          Text('暂无已记录数据').fontSize(12).fontColor(Theme.muted)
+        }.width('100%').height(76).justifyContent(FlexAlign.Center)
+      } else if (this.allNetZero()) {
+        Column() {
+          Text('已记录 · 净变化为 0').fontSize(12).fontColor(Theme.muted)
+        }.width('100%').height(76).justifyContent(FlexAlign.Center)
+      } else {
+        Canvas(this.ctx)
+          .width('100%')
+          .height(136)
+          .backgroundColor(Theme.paper)
+          .onReady(() => {
+            this.ready = true;
+            this.draw();
+          })
+      }
     }
     .width('100%')
-    .padding(20)
-    .backgroundColor('#FFFFFF')
-    .borderRadius(24)
+    .padding(16)
+    .backgroundColor(Theme.paper)
+    .borderRadius(Theme.cardRadius)
   }
 
   // Canvas 只在 onReady 绘制一次；数据随后到达时需主动重绘
   private onData(): void {
+    if (this.populatedCount() === 0 || this.allNetZero()) {
+      this.ready = false;
+      return;
+    }
     if (this.ready) {
       this.draw();
     }
@@ -56,8 +90,8 @@ export struct LineChart {
     const n = this.data.length;
     ctx.font = `${this.getUIContext().vp2px(11)}px sans-serif`;
     if (n === 0) {
-      ctx.fillStyle = '#78867B';
-      ctx.fillText('暂无数据', padL, h / 2);
+      ctx.fillStyle = Theme.muted;
+      ctx.fillText('暂无已记录数据', padL, h / 2);
       return;
     }
     let maxV = 0;
@@ -72,32 +106,33 @@ export struct LineChart {
     }
     let range = maxV - minV;
     if (range <= 0) {
-      maxV = maxV === 0 ? 1 : maxV;
-      range = maxV - minV;
+      maxV = 1;
+      minV = -1;
+      range = 2;
     }
     const zeroY = padT + plotH * (maxV / range);
 
     // 坐标轴与零线
-    ctx.strokeStyle = '#E6EAE0';
+    ctx.strokeStyle = Theme.line;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(padL, padT);
     ctx.lineTo(padL, padT + plotH);
     ctx.lineTo(padL + plotW, padT + plotH);
     ctx.stroke();
-    ctx.strokeStyle = '#BBBBBB';
+    ctx.strokeStyle = '#AEB9AF';
     ctx.beginPath();
     ctx.moveTo(padL, zeroY);
     ctx.lineTo(padL + plotW, zeroY);
     ctx.stroke();
 
-    ctx.fillStyle = '#78867B';
+    ctx.fillStyle = Theme.muted;
     ctx.fillText(`${maxV.toFixed(1)}`, 2, padT + 8);
     ctx.fillText(`${minV.toFixed(1)}`, 2, padT + plotH);
 
     // 折线
     const stepX = n > 1 ? plotW / (n - 1) : 0;
-    ctx.strokeStyle = '#47735B';
+    ctx.strokeStyle = Theme.green;
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
@@ -112,7 +147,7 @@ export struct LineChart {
     ctx.stroke();
 
     // 数据点
-    ctx.fillStyle = '#47735B';
+    ctx.fillStyle = Theme.green;
     for (let i = 0; i < n; i++) {
       const x = padL + (n > 1 ? stepX * i : plotW / 2);
       const y = padT + plotH * ((maxV - this.data[i].netKg) / range);
@@ -122,7 +157,7 @@ export struct LineChart {
     }
 
     // 横轴标签：首、中、尾
-    ctx.fillStyle = '#78867B';
+    ctx.fillStyle = Theme.muted;
     const idxs: number[] = [0];
     if (n > 2) {
       idxs.push(Math.floor((n - 1) / 2));

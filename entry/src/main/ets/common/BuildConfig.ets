@@ -24,7 +24,7 @@ function readDevFactorMode(): boolean {
 export const DEV_FACTOR_MODE: boolean = readDevFactorMode();
 
 /** 应用版本，写入备份文件与冻结安装包 */
-export const APP_VERSION = '1.1.3';
+export const APP_VERSION = '1.2.0';
 
 /** 数据库 schema 版本，写入备份文件用于恢复校验 */
 export const SCHEMA_VERSION = 2;
