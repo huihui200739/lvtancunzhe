@@ -223,19 +223,32 @@ export struct BarChart {
       }
     }
 
-    // 横轴标签：优先首位与末位，中间按密度补一个
+    // 横轴标签：均匀取样并逐个做重叠检查
     ctx.fillStyle = Theme.chartText;
     ctx.font = `${labelSize}px sans-serif`;
-    const idxs: number[] = [0];
-    if (n > 1) { idxs.push(n - 1); }
-    if (n > 4) { idxs.push(Math.floor((n - 1) / 2)); }
-    for (const i of idxs) {
-      const label = this.data[i].label;
-      const width = ctx.measureText(label).width;
-      const cx = padL + slot * i + slot / 2;
-      const x = Math.max(padL, Math.min(cx - width / 2, padL + plotW - width));
-      ctx.fillText(label, x, padT + plotH + 16);
+    const maxLabels = 5;
+    const stride = Math.max(1, Math.ceil(n / maxLabels));
+    let lastRight = padL - 8;
+    for (let i = 0; i < n; i += stride) {
+      lastRight = this.drawAxisLabel(i, padL + slot * i + slot / 2, padL, plotW, padT + plotH + 16, lastRight);
     }
+    this.drawAxisLabel(n - 1, padL + slot * (n - 1) + slot / 2, padL, plotW, padT + plotH + 16, lastRight);
+  }
+
+  /** 绘制一个横轴标签，返回右边界；与前一个重叠时跳过 */
+  private drawAxisLabel(index: number, centerX: number, padL: number, plotW: number,
+    y: number, lastRight: number): number {
+    const ctx = this.ctx;
+    const label = this.data[index].label;
+    const width = ctx.measureText(label).width;
+    let x = centerX - width / 2;
+    if (x < padL) { x = padL; }
+    if (x + width > padL + plotW) { x = padL + plotW - width; }
+    if (x < lastRight + 8) {
+      return lastRight;
+    }
+    ctx.fillText(label, x, y);
+    return x + width;
   }
 
   private formatTick(value: number): string {

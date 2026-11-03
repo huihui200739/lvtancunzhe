@@ -271,26 +271,32 @@ export struct LineChart {
       ctx.stroke();
     }
 
-    // 横轴标签：优先首位与末位，标签过密时只留首尾
+    // 横轴标签：按最大 5 个均匀取样，逐个做重叠检查，末尾优先补齐
     ctx.fillStyle = Theme.chartText;
     ctx.font = `${labelSize}px sans-serif`;
-    const idxs: number[] = [0];
-    if (n > 2) { idxs.push(n - 1); }
-    for (const i of idxs) {
-      const label = this.data[i].label;
-      const width = ctx.measureText(label).width;
-      const x = Math.max(padL, Math.min(points[i].x - width / 2, padL + plotW - width));
-      ctx.fillText(label, x, padT + plotH + 16);
+    const maxLabels = 5;
+    const stride = Math.max(1, Math.ceil(n / maxLabels));
+    let lastRight = padL - 8;
+    for (let i = 0; i < n; i += stride) {
+      lastRight = this.drawAxisLabel(i, points[i].x, padL, plotW, padT + plotH + 16, labelSize, lastRight);
     }
-    if (n > 4) {
-      const mid = Math.floor((n - 1) / 2);
-      const label = this.data[mid].label;
-      const width = ctx.measureText(label).width;
-      const x = points[mid].x - width / 2;
-      if (x > padL + 40 && x + width < padL + plotW - 40) {
-        ctx.fillText(label, x, padT + plotH + 16);
-      }
+    this.drawAxisLabel(n - 1, points[n - 1].x, padL, plotW, padT + plotH + 16, labelSize, lastRight);
+  }
+
+  /** 绘制一个横轴标签，返回右边界；与前一个重叠时跳过并返回原边界 */
+  private drawAxisLabel(index: number, centerX: number, padL: number, plotW: number,
+    y: number, size: number, lastRight: number): number {
+    const ctx = this.ctx;
+    const label = this.data[index].label;
+    const width = ctx.measureText(label).width;
+    let x = centerX - width / 2;
+    if (x < padL) { x = padL; }
+    if (x + width > padL + plotW) { x = padL + plotW - width; }
+    if (x < lastRight + 8) {
+      return lastRight;
     }
+    ctx.fillText(label, x, y);
+    return x + width;
   }
 
   private formatTick(value: number): string {

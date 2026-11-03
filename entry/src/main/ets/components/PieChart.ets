@@ -10,6 +10,7 @@ export struct PieChart {
   @Prop title: string = '';
   @Prop unit: string = 'kgCO₂';
   @Prop @Watch('onData') data: CategoryStat[] = [];
+  @Link @Watch('onSelect') selectedCategory: string;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private ready: boolean = false;
@@ -61,9 +62,15 @@ export struct PieChart {
         ForEach(this.data.filter((c: CategoryStat) => c.positiveKg > 0), (c: CategoryStat, index: number) => {
           Row() {
             Circle().width(6).height(6).fill(PieChart.COLORS[this.data.indexOf(c) % PieChart.COLORS.length])
-            Text(c.label).fontSize(12).fontColor(Theme.ink).layoutWeight(1).margin({ left: 8 }).maxLines(1)
-            Text(`${c.positiveKg.toFixed(2)}`).fontSize(12).fontColor(Theme.muted).fontFeature('"tnum" on')
+            Text(c.label).fontSize(12).fontWeight(this.isSelected(c) ? FontWeight.Medium : FontWeight.Regular)
+              .fontColor(this.selectedCategory.length === 0 || this.isSelected(c) ? Theme.ink : Theme.muted)
+              .layoutWeight(1).margin({ left: 8 }).maxLines(1)
+            Text(`${c.positiveKg.toFixed(2)}`).fontSize(12).fontFeature('"tnum" on')
+              .fontColor(this.selectedCategory.length === 0 || this.isSelected(c) ? Theme.ink : Theme.muted)
           }.width('100%').padding({ top: 10, bottom: 10 })
+            .onClick(() => {
+              this.selectedCategory = this.selectedCategory === `${c.category}` ? '' : `${c.category}`;
+            })
           if (index < this.positiveCategoryCount() - 1) {
             Divider().color(Theme.line)
           }
@@ -79,7 +86,17 @@ export struct PieChart {
     .borderRadius(Theme.cardRadius)
   }
 
-  // Canvas 只在 onReady 绘制一次；数据随后到达时需主动重绘
+  private isSelected(c: CategoryStat): boolean {
+    return this.selectedCategory.length > 0 && this.selectedCategory === `${c.category}`;
+  }
+
+  // Canvas 只在 onReady 绘制一次；数据或选中类别变化时主动重绘
+  private onSelect(): void {
+    if (this.ready) {
+      this.draw();
+    }
+  }
+
   private onData(): void {
     if (this.positiveCategoryCount() === 0) {
       this.ready = false;
@@ -107,31 +124,46 @@ export struct PieChart {
     // 多段之间留 1.5° 空隙，单段时保持完整环
     const gap = segments > 1 ? 0.026 : 0;
     let start = -Math.PI / 2;
+    const hasSelection = this.selectedCategory.length > 0;
     for (let i = 0; i < this.data.length; i++) {
       const v = this.data[i].positiveKg;
       if (v <= 0) {
         continue;
       }
       const angle = (v / total) * Math.PI * 2;
+      const selected = hasSelection && this.selectedCategory === `${this.data[i].category}`;
+      ctx.globalAlpha = hasSelection && !selected ? 0.28 : 1;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, start + gap / 2, start + angle - gap / 2);
       ctx.strokeStyle = PieChart.COLORS[i % PieChart.COLORS.length];
-      ctx.lineWidth = ring;
+      ctx.lineWidth = selected ? ring + 4 : ring;
       ctx.lineCap = 'butt';
       ctx.stroke();
+      ctx.globalAlpha = 1;
       start = start + angle;
     }
 
-    // 中心读数：数值 + 口径说明
+    // 中心读数：未选中显示合计；选中某类时显示该类数值与占比
+    let centerValue = total;
+    let centerLabel = `合计 ${this.unit}`;
+    if (this.selectedCategory.length > 0) {
+      for (const c of this.data) {
+        if (`${c.category}` === this.selectedCategory && c.positiveKg > 0) {
+          centerValue = c.positiveKg;
+          const share = total > 0 ? Math.round((c.positiveKg / total) * 100) : 0;
+          centerLabel = `${c.label} · ${share}%`;
+        }
+      }
+    }
     const valueSize = this.getUIContext().vp2px(20);
     const labelSize = this.getUIContext().vp2px(10);
     ctx.textAlign = 'center';
     ctx.fillStyle = Theme.ink;
     ctx.font = `${valueSize}px sans-serif`;
-    ctx.fillText(total.toFixed(2), cx, cy + 2);
+    ctx.fillText(centerValue.toFixed(2), cx, cy + 2);
     ctx.fillStyle = Theme.chartText;
     ctx.font = `${labelSize}px sans-serif`;
-    ctx.fillText(`合计 ${this.unit}`, cx, cy + 18);
+    ctx.fillText(centerLabel, cx, cy + 18);
     ctx.textAlign = 'left';
   }
 }

@@ -70,6 +70,7 @@ export struct DashboardTab {
   @State summary: StatsSummary = emptySummary();
   @State message: string = '';
   @State selectedKey: string = '';
+  @State selectedCategory: string = '';
 
   private dims: DimOption[] = [
     { key: 'day', label: '日' },
@@ -137,6 +138,7 @@ export struct DashboardTab {
       if (version !== this.reloadVersion) { return; }
       this.summary = summary;
       this.from = from; this.to = to; this.appliedLabel = label;
+      this.selectedCategory = '';
       this.scopeKey = summary.gasScopes.indexOf(scope) >= 0 ? scope : (summary.gasScopes.length > 0 ? summary.gasScopes[0] : scope);
       this.appliedScope = this.scopeKey;
     } catch (e) {
@@ -293,7 +295,7 @@ export struct DashboardTab {
                 .fontColor(this.scopeKey === scope ? Theme.paper : Theme.green)
                 .padding({ left: 16, right: 16, top: 12, bottom: 12 }).borderRadius(18)
                 .backgroundColor(this.scopeKey === scope ? Theme.green : Theme.paper)
-                .onClick(() => { this.scopeKey = scope; this.reload(); })
+                .onClick(() => { this.scopeKey = scope; this.selectedKey = ''; this.selectedCategory = ''; this.reload(); })
             }, (scope: string) => scope)
           }.width('100%').margin({ top: 16 })
           Text('两种气体口径分别查看，所有图表随选择同步。').fontSize(11).fontColor(Theme.muted).margin({ top: 10 })
@@ -310,7 +312,7 @@ export struct DashboardTab {
                 Text(this.catLabel(k)).fontSize(12).fontColor(this.categoryKey === k ? Theme.paper : Theme.muted)
                   .padding({ left: 14, right: 14, top: 12, bottom: 12 }).borderRadius(18)
                   .backgroundColor(this.categoryKey === k ? Theme.green : Theme.bg).margin({ right: 8, bottom: 8 })
-                  .onClick(() => { this.categoryKey = k; this.reload(); })
+                  .onClick(() => { this.categoryKey = k; this.selectedKey = ''; this.selectedCategory = ''; this.reload(); })
               }, (k: string) => k)
             }.width('100%')
             Row({ space: 8 }) {
@@ -345,7 +347,7 @@ export struct DashboardTab {
             .width('100%').margin({ top: 8 })
         }
         BarChart({ title: '减排贡献与增加排放', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey }).margin({ top: 12 })
-        PieChart({ title: '各类行动的正向贡献', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.categories }).margin({ top: 12 })
+        PieChart({ title: '各类行动的正向贡献', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.summary.categories, selectedCategory: $selectedCategory }).margin({ top: 12 })
         Text('正值为相对基准的减排贡献，负值为增加排放。仅统计已记录的有效行为，不代表完整个人碳足迹。')
           .fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%').margin({ top: 24, bottom: 30 })
       }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)
