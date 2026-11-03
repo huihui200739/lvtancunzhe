@@ -87,6 +87,19 @@ const voucher=(over={})=>({
   assert.equal(AiCoachService.modelsEndpoint('https://www.sub-coco.org/v1/chat/completions'),'https://www.sub-coco.org/v1/models');
   assert.equal(AiCoachService.modelsEndpoint('https://relay.example.com/models'),'https://relay.example.com/models');
  });
+ await check('模型元信息解析为上下文与每百万价格，缺失或异常时如实省略',()=>{
+  const plain=AiCoachService.parseModelOption({id:'demo-model'});
+  assert.equal(plain.id,'demo-model');assert.equal(AiCoachService.modelMetaText(plain),'');
+  const meta=AiCoachService.parseModelOption({id:'demo-model',context_length:65536,pricing:{prompt:'0.00000027',completion:0.0000011}});
+  assert.equal(meta.contextLength,65536);assert.equal(meta.priceIn,0.27);assert.equal(meta.priceOut,1.1);
+  assert.equal(AiCoachService.modelMetaText(meta),'上下文66K · 输入0.27/输出1.1 每百万');
+  const perMillion=AiCoachService.parseModelOption({id:'m2',context_length:1000000,pricing:{prompt:2,completion:8}});
+  assert.equal(AiCoachService.modelMetaText(perMillion),'上下文1M · 输入2/输出8 每百万');
+  assert.equal(AiCoachService.parseModelOption({context_length:4096}),null);
+  const bad=AiCoachService.parseModelOption({id:'m3',context_length:-5,pricing:{prompt:'abc',completion:0}});
+  assert.equal(bad.contextLength,undefined);assert.equal(bad.priceIn,undefined);assert.equal(bad.priceOut,undefined);
+  assert.equal(AiCoachService.modelMetaText(bad),'');
+ });
  await check('中转站根地址自动补全为 chat completions',()=>{
   assert.equal(AiConfigStore.effectiveEndpoint('https://www.sub-coco.org'),'https://www.sub-coco.org/v1/chat/completions');
   assert.equal(AiConfigStore.effectiveEndpoint('https://relay.example.com/'),'https://relay.example.com/v1/chat/completions');

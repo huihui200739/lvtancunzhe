@@ -38,3 +38,15 @@ export function maskKey(key: string): string {
   }
   return `••••${key.substring(key.length - 4)}`;
 }
+
+/** /models 列表里单个模型的展示信息；元数据缺失时保持未定义，界面如实省略 */
+export interface AiModelOption {
+  /** 模型名，可直接填入模型配置 */
+  id: string;
+  /** 上下文窗口（tokens），中转站未返回时不展示 */
+  contextLength?: number;
+  /** 每百万 tokens 输入价格（已归一化），未返回或不可信时不展示 */
+  priceIn?: number;
+  /** 每百万 tokens 输出价格（已归一化），未返回或不可信时不展示 */
+  priceOut?: number;
+}

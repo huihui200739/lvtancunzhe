@@ -1,5 +1,5 @@
 import { http } from '@kit.NetworkKit';
-import { AiConfig, AiSuggestionView } from '../models/AiModels';
+import { AiConfig, AiModelOption, AiSuggestionView } from '../models/AiModels';
 import { PlanOutcome } from '../models/PlanModels';
 import { DateUtil, NumUtil } from '../common/Format';
 import { Result, ErrorCode } from '../common/AppError';
@@ -25,8 +25,15 @@ interface AiChatResponse {
   choices?: AiChatChoice[];
   error?: AiChatError;
 }
+interface AiModelPricing {
+  /** 单价可能是数字或字符串，不同中转站不一致 */
+  prompt?: number | string;
+  completion?: number | string;
+}
 interface AiModelEntry {
   id?: string;
+  context_length?: number;
+  pricing?: AiModelPricing;
 }
 interface AiModelListResponse {
   data?: AiModelEntry[];
@@ -79,8 +86,8 @@ export class AiCoachService {
     return Result.success(view);
   }
 
-  /** 拉取中转站/接口的可用模型列表，便于避免模型名写错导致 404 */
-  static async listModels(config: AiConfig): Promise<Result<string[]>> {
+  /** 拉取中转站/接口的可用模型列表（含可选的上下文/价格元信息），便于避免模型名写错导致 404 */
+  static async listModels(config: AiConfig): Promise<Result<AiModelOption[]>> {
     const endpoint = AiConfigStore.effectiveEndpoint(config.endpoint);
     const key = config.apiKey.trim();
     if (endpoint.length === 0 || key.length === 0) {
@@ -105,10 +112,11 @@ export class AiCoachService {
       if (parsed.data === undefined || parsed.data.length === 0) {
         return Result.failure(ErrorCode.E_IO, '接口没有返回模型列表，可直接手动填写模型名。');
       }
-      const out: string[] = [];
+      const out: AiModelOption[] = [];
       for (const m of parsed.data) {
-        if (m.id !== undefined && m.id.length > 0 && out.indexOf(m.id) < 0) {
-          out.push(m.id);
+        const option = AiCoachService.parseModelOption(m);
+        if (option !== null && out.findIndex((o: AiModelOption) => o.id === option.id) < 0) {
+          out.push(option);
         }
       }
       return Result.success(out);
@@ -117,6 +125,71 @@ export class AiCoachService {
     } finally {
       client.destroy();
     }
+  }
+
+  /** 把 /models 里的一条记录转成展示信息；id 缺失或为空时返回 null */
+  static parseModelOption(entry: AiModelEntry): AiModelOption | null {
+    if (entry.id === undefined || entry.id.length === 0) {
+      return null;
+    }
+    const option: AiModelOption = { id: entry.id };
+    if (entry.context_length !== undefined && Number.isFinite(entry.context_length) && entry.context_length > 0) {
+      option.contextLength = entry.context_length;
+    }
+    const promptPrice = AiCoachService.pricePerMillion(entry.pricing?.prompt);
+    if (promptPrice !== undefined) {
+      option.priceIn = promptPrice;
+    }
+    const completionPrice = AiCoachService.pricePerMillion(entry.pricing?.completion);
+    if (completionPrice !== undefined) {
+      option.priceOut = completionPrice;
+    }
+    return option;
+  }
+
+  /**
+   * 把接口返回的单价统一成"每百万 tokens"数值，便于横向比较。
+   * 不同中转站单位不一：按 token 计价的数值通常远小于 0.001，按百万计价的通常不小于 0.001；
+   * 该阈值只是展示参考，不参与任何结算，也不回写用户配置。
+   */
+  static pricePerMillion(raw: number | string | undefined): number | undefined {
+    if (raw === undefined) {
+      return undefined;
+    }
+    const value = typeof raw === 'string' ? Number.parseFloat(raw) : raw;
+    if (!Number.isFinite(value) || value <= 0) {
+      return undefined;
+    }
+    return value >= 0.001 ? value : value * 1000000;
+  }
+
+  /** 模型 chips 上的元信息文本，如「上下文64K · 输入0.27/输出1.1 每百万」；没有元数据时为空串 */
+  static modelMetaText(option: AiModelOption): string {
+    const parts: string[] = [];
+    if (option.contextLength !== undefined) {
+      parts.push(`上下文${AiCoachService.shortTokens(option.contextLength)}`);
+    }
+    if (option.priceIn !== undefined || option.priceOut !== undefined) {
+      const inText = option.priceIn !== undefined ? AiCoachService.priceText(option.priceIn) : '?';
+      const outText = option.priceOut !== undefined ? AiCoachService.priceText(option.priceOut) : '?';
+      parts.push(`输入${inText}/输出${outText} 每百万`);
+    }
+    return parts.join(' · ');
+  }
+
+  private static shortTokens(tokens: number): string {
+    if (tokens >= 1000000) {
+      return `${AiCoachService.trimNumber(tokens / 1000000)}M`;
+    }
+    return `${Math.round(tokens / 1000)}K`;
+  }
+
+  private static priceText(value: number): string {
+    return `${Number(value.toFixed(3))}`;
+  }
+
+  private static trimNumber(value: number): string {
+    return `${Number(value.toFixed(1))}`;
   }
 
   /** 从 chat completions 地址推导模型列表地址 */

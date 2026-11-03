@@ -2,7 +2,7 @@ import { router, promptAction } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { Theme } from '../common/Theme';
 import { SubpageHeader, PageIntro, SectionHeading, Notice } from '../components/DesignSystem';
-import { AiConfig, emptyAiConfig, maskKey } from '../models/AiModels';
+import { AiConfig, AiModelOption, emptyAiConfig, maskKey } from '../models/AiModels';
 import { AiConfigStore } from '../services/AiConfigStore';
 import { AiCoachService } from '../services/AiCoachService';
 
@@ -22,7 +22,7 @@ struct AiSettingsPage {
   @State message: string = '';
   @State passed: boolean = false;
   @State resultTitle: string = '';
-  @State modelOptions: string[] = [];
+  @State modelOptions: AiModelOption[] = [];
   @State modelsLoading: boolean = false;
 
   aboutToAppear(): void {
@@ -163,15 +163,21 @@ struct AiSettingsPage {
               .onClick(() => this.loadModels())
             if (this.modelOptions.length > 0) {
               Flex({ wrap: FlexWrap.Wrap }) {
-                ForEach(this.modelOptions, (m: string) => {
-                  Text(m).fontSize(11)
-                    .fontColor(this.modelText === m ? Theme.paper : Theme.green)
-                    .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                    .backgroundColor(this.modelText === m ? Theme.green : Theme.sage)
-                    .borderRadius(Theme.controlRadius)
-                    .margin({ right: 8, bottom: 8 })
-                    .onClick(() => { this.modelText = m; })
-                }, (m: string) => m)
+                ForEach(this.modelOptions, (m: AiModelOption) => {
+                  Column() {
+                    Text(m.id).fontSize(11)
+                      .fontColor(this.modelText === m.id ? Theme.paper : Theme.green)
+                    if (AiCoachService.modelMetaText(m).length > 0) {
+                      Text(AiCoachService.modelMetaText(m)).fontSize(9).lineHeight(13)
+                        .fontColor(this.modelText === m.id ? Theme.paper : Theme.muted)
+                    }
+                  }.alignItems(HorizontalAlign.Start)
+                  .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+                  .backgroundColor(this.modelText === m.id ? Theme.green : Theme.sage)
+                  .borderRadius(Theme.controlRadius)
+                  .margin({ right: 8, bottom: 8 })
+                  .onClick(() => { this.modelText = m.id; })
+                }, (m: AiModelOption) => m.id)
               }.width('100%')
             }
             Text('API Key').fontSize(12).fontColor(Theme.muted).width('100%')

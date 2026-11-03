@@ -66,6 +66,8 @@ export struct DashboardTab {
   @State loading: boolean = false;
   @State appliedLabel: string = '';
   @State appliedScope: string = '';
+  /** 周/月/年视图最近区间 chips：超过 3 个时默认收起，可点「更多」展开 */
+  @State recentExpanded: boolean = false;
   private reloadVersion: number = 0;
   @State summary: StatsSummary = emptySummary();
   @State message: string = '';
@@ -260,12 +262,12 @@ export struct DashboardTab {
     }
   }
 
-  /** 最近有记录的若干个区间，作为周/月/年视图的快捷入口 */
+  /** 最近有记录的若干个区间，作为周/月/年视图的快捷入口；limit<=0 表示全部 */
   private recentWithData(limit: number): StatBucket[] {
     const list = this.paddedBuckets();
     const out: StatBucket[] = [];
-    for (let i = list.length - 1; i >= 0 && out.length < limit; i--) {
-      if (list[i].count > 0) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].count > 0 && (limit <= 0 || out.length < limit)) {
         out.unshift(list[i]);
       }
     }
@@ -397,7 +399,7 @@ export struct DashboardTab {
         LineChart({ title: '净变化趋势', unit: this.appliedScope === 'CO2e' ? 'kgCO₂e' : 'kgCO₂', data: this.paddedBuckets(), selectedKey: $selectedKey })
         if (this.dimension() !== TimeDimension.DAY && this.recentWithData(3).length > 0) {
           Flex({ wrap: FlexWrap.Wrap }) {
-            ForEach(this.recentWithData(3), (b: StatBucket) => {
+            ForEach(this.recentExpanded ? this.recentWithData(0) : this.recentWithData(3), (b: StatBucket) => {
               Text(b.label).fontSize(11)
                 .fontColor(this.selectedKey === b.key ? Theme.paper : Theme.green)
                 .padding({ left: 10, right: 10, top: 6, bottom: 6 })
@@ -406,6 +408,16 @@ export struct DashboardTab {
                 .margin({ right: 8, bottom: 8 })
                 .onClick(() => { this.selectedKey = b.key; this.jumpToSelectedRange(); })
             }, (b: StatBucket) => b.key)
+            if (this.recentWithData(0).length > 3) {
+              Text(this.recentExpanded ? '收起' : `更多 ${this.recentWithData(0).length - 3}`)
+                .fontSize(11)
+                .fontColor(Theme.muted)
+                .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                .backgroundColor(Theme.sage)
+                .borderRadius(Theme.controlRadius)
+                .margin({ right: 8, bottom: 8 })
+                .onClick(() => { this.recentExpanded = !this.recentExpanded; })
+            }
           }.width('100%').margin({ top: 4 })
         }
         if (this.selectedDetail().length > 0) {

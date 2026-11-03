@@ -5,7 +5,7 @@ OpenHarmony / ArkTS / ArkUI / 本地RDB的离线低碳记录应用。当前协�
 
 ## 运行和验证
 
-- `npm ci --ignore-scripts`，`npm test`：59项基线 + 13项特色功能隔离服务回归（共72项），不是原生UI验收。
+- `npm ci --ignore-scripts`，`npm test`：59项基线 + 14项特色功能隔离服务回归（共73项），不是原生UI验收。
 - macOS：`bash scripts/setup-sdk.sh`，`./build.sh prod`；自定义路径见README。
 - Windows/其他平台：按docs/team/试用指南.md配置DevEco与API24 SDK。
 - `./build.sh`是debug/测试因子模式；release必须DEV_FACTOR_MODE=false。

@@ -58,14 +58,14 @@ bash scripts/setup-sdk.sh
 
 构建产物：`entry/build/default/outputs/default/entry-default-unsigned.hap`。这是 **HAP，不是 Android APK**。是否能够安装未签名包取决于调试环境；本项目只验证过指定模拟器。常规设备需自行按 DevEco 配置签名。
 
-## 运行 72 项业务回归
+## 运行 73 项业务回归
 
 ```sh
 npm ci --ignore-scripts
 npm test
 ```
 
-测试包含 59 项原有隔离服务基线与 13 项特色功能检查（行动教练、隐私周报、本地碳普惠模拟、可选 AI 上下文与配置校验），不替代 ArkUI release 编译、模拟器或真机验收。安装 DevEco 的机器优先使用 SDK 随附 ArkTS TypeScript；未安装 SDK 的 CI 使用锁定的 npm TypeScript，执行同一组服务逻辑回归。也可用 `ARKTS_TYPESCRIPT_PATH` 指定编译器目录。
+测试包含 59 项原有隔离服务基线与 14 项特色功能检查（行动教练、隐私周报、本地碳普惠模拟、可选 AI 上下文/配置校验与模型列表元信息），不替代 ArkUI release 编译、模拟器或真机验收。安装 DevEco 的机器优先使用 SDK 随附 ArkTS TypeScript；未安装 SDK 的 CI 使用锁定的 npm TypeScript，执行同一组服务逻辑回归。也可用 `ARKTS_TYPESCRIPT_PATH` 指定编译器目录。
 
 **这不替代 ArkTS release 编译和原生 UI 验收**，不访问用户数据库。云端CI尚未启用；仓库管理员可按[自动检查说明](docs/team/automation/README.md)启用模板。
 
