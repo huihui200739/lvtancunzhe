@@ -2,13 +2,12 @@ const assert=require('assert/strict');
 const {load,D,DateUtil,repo,draft,DB,today}=require('./service-fixtures.cjs');
 const {ActionCoachService}=load('services/ActionCoachService');
 const {WeeklyReportService}=load('services/WeeklyReportService');
-const {LocalMockBenefitService}=load('services/LocalMockBenefitService');
+const {MockBenefitPlatform}=load('services/MockBenefitPlatform');
 const {AiCoachService}=load('services/AiCoachService');
 const {AiConfigStore}=load('services/AiConfigStore');
 const {maskKey}=load('models/AiModels');
 const {AiNoteStore}=load('services/AiNoteStore');
 const {PhotoAssist}=load('services/PhotoAssist');
-const {MockBenefitPlatform}=load('services/MockBenefitPlatform');
 const {TaskReminderService}=load('services/TaskReminderService');
 let checks=0;async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
 const task=(id,day,status,extra={})=>({planTaskId:id,planId:'p',templateId:'P01',name:id,category:D.BehaviorCategory.TRAVEL,day,status,expectedKg:0.42,quantity:1,unit:'km',extraMinutes:10,extraCost:0,reason:'与已保存计划一致',participationOnly:false,linkedRecordId:'',actualKg:0,rewarded:false,...extra});
@@ -41,17 +40,21 @@ const voucher=(over={})=>({
   const bad=await WeeklyReportService.buildWeeklyReport({queryStatRows:async()=>[]},'2026-99-99');assert.equal(bad.ok,false);
   const empty=await WeeklyReportService.buildWeeklyReport({queryStatRows:async()=>[]},today);assert.equal(empty.ok,true);assert.match(empty.data,/还没有可汇总/);
  });
- await check('本地碳普惠仿真仅接受最新有效已核验正向记录',()=>{
-  assert.equal(LocalMockBenefitService.evaluate(voucher()).eligible,true);
-  assert.equal(LocalMockBenefitService.evaluate(voucher({isLatest:false})).eligible,false);
-  assert.equal(LocalMockBenefitService.evaluate(voucher({record:{recordId:'record-7',revision:1,status:D.RecordStatus.VOIDED}})).eligible,false);
-  assert.equal(LocalMockBenefitService.evaluate(voucher({snapshot:{reductionKg:-.2,isNetIncrease:true,gasScope:D.GasScope.CO2}})).eligible,false);
-  assert.equal(LocalMockBenefitService.evaluate(voucher({sources:[{reviewStatus:'pending'}]})).eligible,false);
+ await check('模拟碳普惠平台仅接受最新有效已核验正向记录',()=>{
+  const ok=v=>MockBenefitPlatform.ineligibleReason(v)==='';
+  assert.equal(ok(voucher()),true);
+  assert.equal(ok(voucher({isLatest:false})),false);
+  assert.equal(ok(voucher({record:{recordId:'record-7',revision:1,status:D.RecordStatus.VOIDED}})),false);
+  assert.equal(ok(voucher({snapshot:{reductionKg:-.2,isNetIncrease:true,gasScope:D.GasScope.CO2}})),false);
+  assert.equal(ok(voucher({sources:[{reviewStatus:'pending'}]})),false);
  });
- await check('仿真提交按记录版本幂等、只在内存查询且明确标注模拟',()=>{
-  const v=voucher();const first=LocalMockBenefitService.submit(v,'2026-11-03T10:00:00');assert.equal(first.ok,true);assert.equal(first.data.status,'SIMULATED_ACCEPTED');assert.match(first.data.platformName,/本地模拟/);assert.match(first.data.notice,/不是平台交易/);
-  const second=LocalMockBenefitService.submit(v,'2026-11-03T11:00:00');assert.deepEqual(second.data,first.data);assert.equal(LocalMockBenefitService.query(first.data.requestId).data.createdAt,'2026-11-03T10:00:00');
-  const invalid=LocalMockBenefitService.submit(voucher({isLatest:false}),'2026-11-03T12:00:00');assert.equal(invalid.ok,false);
+ await check('模拟平台请求号按记录版本稳定、积分向下取整且明确标注模拟',()=>{
+  assert.equal(MockBenefitPlatform.requestId('record-7',1),MockBenefitPlatform.requestId('record-7',1));
+  assert.notEqual(MockBenefitPlatform.requestId('record-7',1),MockBenefitPlatform.requestId('record-7',2));
+  assert.match(MockBenefitPlatform.requestId('record-7',1),/^SIM-[0-9A-F]{8}$/);
+  assert.equal(MockBenefitPlatform.creditsFor(0.5897),5);assert.equal(MockBenefitPlatform.creditsFor(0.05),0);assert.equal(MockBenefitPlatform.creditsFor(NaN),0);
+  assert.match(MockBenefitPlatform.NOTICE,/模拟平台/);assert.match(MockBenefitPlatform.NOTICE,/不代表真实权益/);
+  assert.equal(MockBenefitPlatform.PERKS.every(p=>/模拟/.test(p.name)&&/虚构/.test(p.partner)),true);
  });
  await check('行为服务升级不更改既有记账与积分用例依赖',async()=>{
   const db=new DB();const res=await require('./service-fixtures.cjs').R.createRecord(db,repo,draft('EF_ELEC_HENAN_2023'));assert.equal(res.ok,true,res.message);assert.equal(db.s.records.length,1);assert.equal(db.s.points.length>0,true);

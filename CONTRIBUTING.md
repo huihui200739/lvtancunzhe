@@ -1,8 +1,8 @@
 # 团队协作
 
-从README进入当前1.1.3协作资料。建议用`feature/简短名称`或`fix/简短名称`分支，经Pull Request审核后合入main。
+从README进入当前1.2.0协作资料。建议用`feature/简短名称`或`fix/简短名称`分支，经Pull Request审核后合入main。
 
-- 改前先运行`npm ci --ignore-scripts`和`npm test`；业务改动后运行相关回归，页面改动还需release编译及原生截图。
+- 改前先运行`npm ci --ignore-scripts`和`npm test`；首次构建前运行`bash scripts/fetch-model.sh`下载端侧模型；业务改动后运行相关回归，页面改动还需release编译及原生截图。
 - 不把本地数据库、测试备份、签名密钥、账号凭证或依赖目录加入提交。
 - 不改正式因子的核验状态、数值或边界来让演示更好看；新方法先补来源和适用性说明。
 - 不混加CO₂/CO₂e。预计计划、真实记录、仅参与任务与虚拟奖励分开解释。
