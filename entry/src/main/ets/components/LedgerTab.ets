@@ -12,9 +12,9 @@ import { ScenarioResult } from '../models/CalcModels';
 import { PlanConstraints, PlanOutcome } from '../models/PlanModels';
 import { PointAccountView } from '../models/PointModels';
 import { BehaviorCategory, categoryName, gasUnitLabel, RecordStatus, ScenarioRole } from '../common/Domain';
-import { Theme, Passbook, categoryIcon } from '../common/Theme';
+import { Theme, Passbook, categoryIcon, categoryHue, categoryTint } from '../common/Theme';
 import { AppIcon, Notice } from './DesignSystem';
-import { Seal, DoubleRule, DashedRule, StatCell } from './Passbook';
+import { Seal, DoubleRule, HeroStat } from './Passbook';
 import { DateUtil, NumUtil } from '../common/Format';
 
 /** 账页一行：记录 + 该口径下截至此笔的结余 */
@@ -41,13 +41,13 @@ const SLIPS: SlipDef[] = [
 
 function shortCategory(category: BehaviorCategory): string {
   if (category === BehaviorCategory.TRAVEL) { return '出行'; }
-  if (category === BehaviorCategory.WATER_ENERGY) { return '节能'; }
+  if (category === BehaviorCategory.WATER_ENERGY) { return '节电'; }
   if (category === BehaviorCategory.RECYCLING) { return '回收'; }
   return '食物';
 }
 
 function plainLabel(label: string): string {
-  return label.replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '').trim();
+  return label.replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '').replace(/用电$/, '').trim();
 }
 
 /** 账页摘要直接取冻结快照里的情景名，不重新计算、不另造描述 */
@@ -349,9 +349,9 @@ export struct LedgerTab {
     Scroll() {
       Column() {
         this.masthead()
-        this.balanceSheet()
+        this.heroNote()
         this.todaySlip()
-        this.sectionTitle('填一张存入单', '只记真实发生的')
+        this.sectionTitle('存入单', '只记真实发生的')
         Row({ space: 10 }) {
           this.slip(SLIPS[0])
           this.slip(SLIPS[1])
@@ -362,7 +362,7 @@ export struct LedgerTab {
         }.width('100%').margin({ top: 10 })
         if (this.suspended) { Notice({ text: `积分待补足 ${this.shortfall} 分，兑换暂时暂停。`, warning: true }).margin({ top: 16 }) }
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }).margin({ top: 16 }) }
-        this.sectionTitle(`${this.selectedScope} 账页`, '点任一行，查看凭证')
+        this.sectionTitle('账页', `${this.selectedScope} · 点任一行看凭证`)
         if (this.filterFrom.length > 0) {
           this.filterBar()
         }
@@ -370,70 +370,81 @@ export struct LedgerTab {
         if (this.testMode) {
           Notice({ text: '开发预览 · 含未核验因子，数值仅供联调，不得用于参赛材料与对外结论。', warning: true }).margin({ top: 20 })
         }
-        Text('数量由你申报、未经独立核实；结余是按公开因子的估算，不是经核证的碳资产。')
-          .fontSize(11).lineHeight(18).fontColor(Passbook.faint).width('100%').margin({ top: 20, bottom: 28 })
+        Row({ space: 8 }) {
+          Seal({ label: '核', sealSize: 18, angle: -12 })
+          Text('「核」表示这笔的计算因子来源已核对，不代表行为本身经过认证。数量由你申报；结余是估算，不是经核证的碳资产。')
+            .fontSize(11).lineHeight(18).fontColor(Passbook.faint).layoutWeight(1)
+        }.width('100%').alignItems(VerticalAlign.Top).margin({ top: 18, bottom: 30 })
       }.width('100%').padding({ left: 20, right: 20 }).alignItems(HorizontalAlign.Start)
-    }.width('100%').height('100%').align(Alignment.TopStart).scrollBar(BarState.Off).backgroundColor(Theme.bg)
+    }.width('100%').height('100%').align(Alignment.TopStart).scrollBar(BarState.Off).backgroundColor(Passbook.page)
   }
 
   @Builder
   masthead() {
     Row() {
-      Column({ space: 2 }) {
-        Text('GREEN CARBON PASSBOOK').fontSize(9).fontFamily(Passbook.mono).letterSpacing(2).fontColor(Passbook.faint)
-        Text('绿碳存折').fontSize(30).fontWeight(FontWeight.Bold).fontFamily(Passbook.serif).fontColor(Passbook.print)
+      Column({ space: 3 }) {
+        Text('No. 0001 · 本机离线账本').fontSize(10).fontFamily(Passbook.numeral).letterSpacing(1).fontColor(Passbook.faint)
+        Text('绿碳存折').fontSize(28).fontFamily(Passbook.serif).fontColor(Passbook.print)
       }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-      Column({ space: 4 }) {
-        Text(DateUtil.today().replace(/-/g, '.')).fontSize(12).fontFamily(Passbook.mono).fontColor(Passbook.print)
-        Text('本机离线账本').fontSize(10).fontColor(Passbook.faint)
+      Column({ space: 2 }) {
+        Text(DateUtil.today().substring(8)).fontSize(30).fontFamily(Passbook.numeral).fontColor(Passbook.print)
+        Text(this.monthLabel()).fontSize(10).letterSpacing(1).fontColor(Passbook.faint)
       }.alignItems(HorizontalAlign.End)
-    }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 18, bottom: 16 })
+    }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 14, bottom: 16 })
   }
 
+  private monthLabel(): string {
+    const months: string[] = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const today = DateUtil.today();
+    return `${months[Number.parseInt(today.substring(5, 7), 10) - 1]} ${today.substring(0, 4)}`;
+  }
+
+  /** 首页卡面：钞券式扭索纹 + 虹彩渐变；结余数字用衬线体，口径切换做成票面上的小面额牌 */
   @Builder
-  balanceSheet() {
-    Column() {
-      Row() {
-        Text('本折结余').fontSize(12).fontColor(Passbook.faint)
+  heroNote() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Image($r('app.media.passbook_hero')).width('100%').height('100%').objectFit(ImageFit.Cover)
+        .draggable(false).accessibilityLevel('no')
+      Column() {
+        Row() {
+          Text('本折结余').fontSize(12).letterSpacing(2).fontColor('#3A3F4A')
+          Blank()
+          if (this.scopes.length > 1) {
+            Row({ space: 2 }) {
+              ForEach(this.scopes, (scope: string) => {
+                Text(scope).fontSize(11).fontFamily(Passbook.numeral)
+                  .fontColor(this.selectedScope === scope ? '#FFFFFF' : Passbook.print)
+                  .backgroundColor(this.selectedScope === scope ? Passbook.print : Color.Transparent)
+                  .borderRadius(12).padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                  .accessibilityText(`切换到 ${scope} 账页`)
+                  .onClick(() => { this.selectedScope = scope; })
+              }, (scope: string) => scope)
+            }.padding(2).backgroundColor('#99FFFFFF').borderRadius(14)
+          } else {
+            Text(this.selectedScope).fontSize(11).fontFamily(Passbook.numeral).fontColor('#3A3F4A')
+          }
+        }.width('100%')
+        Row({ space: 6 }) {
+          Text(NumUtil.show(this.netTotal())).fontSize(68).fontFamily(Passbook.numeral)
+            .fontColor(Passbook.print).maxLines(1).minFontSize(34).maxFontSize(68)
+            .heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).flexShrink(1)
+          Text(this.selectedScope).fontSize(14).fontFamily(Passbook.numeral).fontColor('#3A3F4A')
+            .margin({ bottom: 14 }).flexShrink(0)
+        }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 6 })
+        Text('每一笔 ＝ 原本做法的排放 − 这次实际的排放').fontSize(11).fontColor('#4A505C').width('100%')
         Blank()
-        if (this.scopes.length > 1) {
-          Row() {
-            ForEach(this.scopes, (scope: string) => {
-              Text(scope).fontSize(11).fontFamily(Passbook.mono)
-                .fontColor(this.selectedScope === scope ? Passbook.sheet : Passbook.print)
-                .backgroundColor(this.selectedScope === scope ? Passbook.print : Color.Transparent)
-                .padding({ left: 9, right: 9, top: 5, bottom: 5 })
-                .accessibilityText(`切换到 ${scope} 账页`)
-                .onClick(() => { this.selectedScope = scope; })
-            }, (scope: string) => scope)
-          }.border({ width: 1, color: Passbook.print }).borderRadius(2).clip(true)
-        } else {
-          Text(this.selectedScope).fontSize(11).fontFamily(Passbook.mono).fontColor(Passbook.faint)
-        }
-      }.width('100%')
-      Row({ space: 8 }) {
-        Text(NumUtil.show(this.netTotal())).fontSize(52).fontWeight(FontWeight.Medium).fontFamily(Passbook.mono)
-          .fontColor(Passbook.print).fontFeature('"tnum" on')
-          .maxLines(1).minFontSize(26).maxFontSize(52).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
-          .flexShrink(1)
-        Text(this.selectedScope).fontSize(13).fontColor(Passbook.faint).margin({ bottom: 11 }).flexShrink(0)
-      }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 4 })
-      Text('每一笔 = 原本做法的排放 − 这次实际的排放').fontSize(11).fontColor(Passbook.faint).width('100%')
-      DashedRule().margin({ top: 16, bottom: 14 })
-      Row() {
-        StatCell({ label: '存入', value: `${this.depositCount()} 笔` }).layoutWeight(1)
-        StatCell({ label: '本月', value: NumUtil.signed(this.monthNet(), 2) }).layoutWeight(1)
-        StatCell({ label: '积分', value: `${this.points}` }).layoutWeight(1)
-      }.width('100%')
+        Row() {
+          HeroStat({ label: '存入', value: `${this.depositCount()}`, unit: '笔' }).layoutWeight(1)
+          Row().width(0.5).height(30).backgroundColor('#5916181D')
+          HeroStat({ label: '本月', value: NumUtil.signed(this.monthNet(), 2) }).layoutWeight(1)
+          Row().width(0.5).height(30).backgroundColor('#5916181D')
+          HeroStat({ label: '积分', value: `${this.points}`, unit: '分' }).layoutWeight(1)
+        }.width('100%').padding({ top: 12, bottom: 12 }).backgroundColor('#8CFFFFFF').borderRadius(14)
+      }.width('100%').height('100%').padding({ left: 20, right: 20, top: 18, bottom: 16 })
     }
-    .width('100%').padding({ left: 18, right: 18, top: 16, bottom: 16 })
-    .backgroundColor(Passbook.sheet)
-    .border({
-      width: { left: 5, top: 1, right: 1, bottom: 1 },
-      color: { left: Passbook.print, top: Passbook.rule, right: Passbook.rule, bottom: Passbook.rule }
-    })
-    .borderRadius(4)
-    .shadow({ radius: 14, color: '#16302A1A', offsetY: 5 })
+    .width('100%').height(272).borderRadius(24).clip(true)
+    .border({ width: 0.5, color: '#1F16181D' })
+    .shadow({ radius: 28, color: '#1A3B4A78', offsetY: 12 })
     .accessibilityGroup(true)
     .accessibilityText(`本折结余 ${NumUtil.show(this.netTotal())} ${this.selectedScope}，存入 ${this.depositCount()} 笔，可用积分 ${this.points}`)
   }
@@ -441,14 +452,17 @@ export struct LedgerTab {
   @Builder
   todaySlip() {
     Row({ space: 14 }) {
-      Column({ space: 2 }) {
-        Text('今日').fontSize(10).fontColor('#C9D3C2')
-        Text(DateUtil.today().substring(8)).fontSize(24).fontFamily(Passbook.mono).fontColor(Passbook.sheet)
-      }.width(54).padding({ top: 9, bottom: 9 }).backgroundColor(Passbook.print).borderRadius(3)
-      Column({ space: 4 }) {
+      Column({ space: 0 }) {
+        Text('TODAY').fontSize(8).letterSpacing(1.5).fontColor('#A9B0BC')
+        Text(DateUtil.today().substring(8)).fontSize(26).fontFamily(Passbook.numeral).fontColor('#FFFFFF')
+      }.width(56).height(56).justifyContent(FlexAlign.Center).backgroundColor(Passbook.print).borderRadius(16)
+      Column({ space: 3 }) {
         if (this.todayAction !== null) {
-          Text(`${this.todayAction!.isToday ? '今天' : this.todayAction!.day.substring(5)} · 来自你的七日计划`)
-            .fontSize(10).fontColor(Passbook.faint)
+          Row({ space: 6 }) {
+            Circle().width(6).height(6).fill(categoryHue(this.todayAction!.category))
+            Text(`${this.todayAction!.isToday ? '今天' : this.todayAction!.day.substring(5)} · 七日计划`)
+              .fontSize(10).fontColor(Passbook.faint)
+          }
           Text(this.todayAction!.title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Passbook.print)
             .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(this.todayAction!.participationOnly ? '参与任务 · 只记参与，不计 kg'
@@ -464,10 +478,12 @@ export struct LedgerTab {
           Text('按你的时间、费用和出行习惯排七天').fontSize(11).fontColor(Passbook.faint)
         }
       }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-      AppIcon({ name: 'arrow', iconSize: 18 })
+      Stack() {
+        AppIcon({ name: 'arrow', iconSize: 16, color: Passbook.print })
+      }.width(32).height(32).borderRadius(16).backgroundColor(Passbook.wash)
     }
-    .width('100%').padding(10).margin({ top: 14 })
-    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(4)
+    .width('100%').padding(12).margin({ top: 14 })
+    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(20)
     .accessibilityGroup(true)
     .accessibilityText(this.todayAction !== null ? `今日一笔：${this.todayAction!.title}` : '打开七日计划')
     .onClick(() => {
@@ -482,26 +498,34 @@ export struct LedgerTab {
   @Builder
   sectionTitle(title: string, detail: string) {
     Row() {
-      Text(title).fontSize(17).fontWeight(FontWeight.Bold).fontFamily(Passbook.serif).fontColor(Passbook.print).layoutWeight(1)
+      Text(title).fontSize(19).fontFamily(Passbook.serif).fontColor(Passbook.print).layoutWeight(1)
       Text(detail).fontSize(11).fontColor(Passbook.faint)
-    }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 26, bottom: 12 })
+    }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 28, bottom: 12 })
   }
 
+  /** 存入单：左侧票根色带 + 打孔线，颜色即类别 */
   @Builder
   slip(def: SlipDef) {
-    Column({ space: 5 }) {
-      Row() {
-        Text(`存入单 ${def.no}`).fontSize(9).fontFamily(Passbook.mono).letterSpacing(1).fontColor(Passbook.faint)
-        Blank()
-        AppIcon({ name: categoryIcon(def.category), iconSize: 20 })
-      }.width('100%')
-      Text(def.title).fontSize(16).fontWeight(FontWeight.Bold).fontFamily(Passbook.serif).fontColor(Passbook.print)
-        .margin({ top: 8 })
-      Text(def.hint).fontSize(11).lineHeight(16).fontColor(Passbook.faint).maxLines(2)
+    Row() {
+      Column() {
+        Text(def.no).fontSize(13).fontFamily(Passbook.numeral).fontColor('#FFFFFF')
+      }.width(28).height('100%').justifyContent(FlexAlign.Start).padding({ top: 14 })
+      .backgroundColor(categoryHue(def.category))
+      Column() {
+        Row() {
+          Stack() {
+            AppIcon({ name: categoryIcon(def.category), iconSize: 18, color: 'hue' })
+          }.width(32).height(32).borderRadius(10).backgroundColor(categoryTint(def.category))
+          Blank()
+          Text('存入单').fontSize(9).letterSpacing(1).fontColor(Passbook.faint)
+        }.width('100%')
+        Text(def.title).fontSize(16).fontFamily(Passbook.serif).fontColor(Passbook.print).margin({ top: 12 })
+        Text(def.hint).fontSize(11).lineHeight(16).fontColor(Passbook.faint).maxLines(2).margin({ top: 3 })
+      }.layoutWeight(1).height('100%').alignItems(HorizontalAlign.Start).padding({ left: 12, right: 12, top: 12, bottom: 12 })
+      .border({ width: { left: 1 }, color: '#33FFFFFF', style: BorderStyle.Dashed })
     }
-    .layoutWeight(1).height(104).alignItems(HorizontalAlign.Start).padding(14)
-    .backgroundColor(Passbook.sheet)
-    .border({ width: 1, color: Passbook.ruleStrong, style: BorderStyle.Dashed }).borderRadius(4)
+    .layoutWeight(1).height(116)
+    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(18).clip(true)
     .accessibilityGroup(true).accessibilityText(`填写存入单：${def.title}，${def.hint}`)
     .onClick(() => this.openEntry(def.category))
   }
@@ -518,8 +542,8 @@ export struct LedgerTab {
       }.width('100%')
       Row() {
         Text('最近记录').fontSize(11).fontColor(Passbook.print)
-          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-          .border({ width: 1, color: Passbook.rule }).borderRadius(3)
+          .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+          .backgroundColor(Passbook.page).borderRadius(14)
           .onClick(() => this.jumpToLatestRecord())
         Blank()
         Text('显示全部 ×').fontSize(11).fontColor(Passbook.print)
@@ -527,27 +551,27 @@ export struct LedgerTab {
           .onClick(() => { this.filterFrom = ''; this.filterTo = ''; })
       }.width('100%')
       Text('结余仍按全部有效记录累计；这里只筛选显示的行。').fontSize(10).fontColor(Passbook.faint).width('100%')
-    }.width('100%').padding({ left: 10, right: 10, top: 8, bottom: 8 }).margin({ bottom: 10 })
-    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(4)
+    }.width('100%').padding({ left: 12, right: 12, top: 10, bottom: 10 }).margin({ bottom: 10 })
+    .backgroundColor(Passbook.wash).borderRadius(16)
   }
 
   @Builder
   ledgerSheet() {
     Column() {
       Row() {
-        Text('日期').fontSize(10).fontColor(Passbook.faint).width(42)
+        Text('日期').fontSize(10).fontColor(Passbook.faint).width(58)
         Text('摘要').fontSize(10).fontColor(Passbook.faint).layoutWeight(1)
-        Text('存入').fontSize(10).fontColor(Passbook.faint).width(62).textAlign(TextAlign.End)
-        Text('结余').fontSize(10).fontColor(Passbook.faint).width(54).textAlign(TextAlign.End)
-        Text('').width(30)
-      }.width('100%')
-      DoubleRule().margin({ top: 6 })
+        Text('存入').fontSize(10).fontColor(Passbook.faint).width(64).textAlign(TextAlign.End)
+        Text('结余').fontSize(10).fontColor(Passbook.faint).width(46).textAlign(TextAlign.End)
+        Text('').width(32)
+      }.width('100%').padding({ left: 16, right: 10 })
+      DoubleRule({ color: Passbook.ruleStrong }).margin({ top: 8 }).padding({ left: 16, right: 16 })
       if (this.items.length === 0) {
         Text('账页还是空的。从上面任意一张存入单，记下第一笔。').fontSize(12).lineHeight(20).fontColor(Passbook.faint)
-          .width('100%').padding({ top: 22, bottom: 22 }).textAlign(TextAlign.Center)
+          .width('100%').padding({ top: 24, bottom: 24 }).textAlign(TextAlign.Center)
       } else if (this.ledgerLines().length === 0) {
         Text('这段时间在本账页没有记录。可以用 ‹ › 换区间，或显示全部。').fontSize(12).lineHeight(20).fontColor(Passbook.faint)
-          .width('100%').padding({ top: 22, bottom: 22 }).textAlign(TextAlign.Center)
+          .width('100%').padding({ top: 24, bottom: 24 }).textAlign(TextAlign.Center)
       } else {
         ForEach(this.ledgerLines().slice(0, this.visibleCount), (line: LedgerLine, index: number) => {
           this.ledgerRow(line, index === 0)
@@ -559,15 +583,19 @@ export struct LedgerTab {
           .onClick(() => { this.visibleCount += 50; })
       }
     }
-    .width('100%').padding({ left: 14, right: 10, top: 12, bottom: 6 })
-    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(4)
+    .width('100%').padding({ top: 14, bottom: 4 })
+    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(22).clip(true)
   }
 
   @Builder
   ledgerRow(line: LedgerLine, newest: boolean) {
     Column() {
       Row() {
-        Text(line.item.record.occurredAt.substring(5).replace('-', '.')).fontSize(12).fontFamily(Passbook.mono)
+        Row() {
+          Row().width(3).height(30).borderRadius(2)
+            .backgroundColor(line.counted ? categoryHue(line.item.record.category) : Passbook.ruleStrong)
+        }.width(16).justifyContent(FlexAlign.Start)
+        Text(line.item.record.occurredAt.substring(5).replace('-', '.')).fontSize(14).fontFamily(Passbook.numeral)
           .fontColor(Passbook.print).width(42)
         Column({ space: 2 }) {
           Text(line.item.summary).fontSize(13).fontColor(line.counted ? Passbook.print : Passbook.faint)
@@ -575,21 +603,23 @@ export struct LedgerTab {
           Text(`${line.item.record.quantity} ${line.item.record.unit} · 第 ${line.item.record.revision} 版`)
             .fontSize(10).fontColor(Passbook.faint).maxLines(1)
         }.layoutWeight(1).alignItems(HorizontalAlign.Start).padding({ right: 4 })
-        Text(NumUtil.signed(line.item.reductionKg, 2)).fontSize(13).fontFamily(Passbook.mono)
+        Text(NumUtil.signed(line.item.reductionKg, 2)).fontSize(15).fontFamily(Passbook.numeral)
           .fontColor(!line.counted ? Passbook.faint : (line.item.isNetIncrease ? Theme.rust : Passbook.print))
           .decoration({ type: line.counted ? TextDecorationType.None : TextDecorationType.LineThrough, color: Passbook.faint })
-          .width(62).textAlign(TextAlign.End).maxLines(1).minFontSize(9).maxFontSize(13).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
-        Text(line.counted ? NumUtil.show(line.balance) : '—').fontSize(11).fontFamily(Passbook.mono)
-          .fontColor(Passbook.faint).width(54).textAlign(TextAlign.End).maxLines(1).minFontSize(8).maxFontSize(11).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
+          .width(64).textAlign(TextAlign.End).maxLines(1).minFontSize(9).maxFontSize(15)
+          .heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
+        Text(line.counted ? NumUtil.show(line.balance) : '—').fontSize(12).fontFamily(Passbook.numeral)
+          .fontColor(Passbook.faint).width(46).textAlign(TextAlign.End).maxLines(1).minFontSize(8).maxFontSize(12)
+          .heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
         Stack() {
           if (!line.counted) {
             Seal({ label: '撤', sealSize: 22, angle: 8, color: Passbook.faint })
           } else if (line.item.verified) {
             Seal({ label: '核', sealSize: 22, stampIn: newest })
           }
-        }.width(30).height(26)
-      }.width('100%').padding({ top: 11, bottom: 11 })
-      Row().width('100%').height(0.5).backgroundColor(Passbook.rule)
+        }.width(32).height(26)
+      }.width('100%').padding({ left: 0, right: 10, top: 12, bottom: 12 })
+      Row().width('100%').height(0.5).backgroundColor(Passbook.rule).margin({ left: 16 })
     }
     .width('100%')
     .accessibilityGroup(true)

@@ -57,6 +57,23 @@ export struct DoubleRule {
   }
 }
 
+/** 首页卡面下方的小栏位；用 @Prop 组件而非按值传参的 @Builder，数据加载后才会刷新。 */
+@Component
+export struct HeroStat {
+  @Prop label: string = '';
+  @Prop value: string = '';
+  @Prop unit: string = '';
+  build() {
+    Column({ space: 2 }) {
+      Text(this.label).fontSize(10).letterSpacing(1).fontColor('#5A606B')
+      Row({ space: 3 }) {
+        Text(this.value).fontSize(20).fontFamily(Passbook.numeral).fontColor(Passbook.print).maxLines(1)
+        if (this.unit.length > 0) { Text(this.unit).fontSize(10).fontColor('#5A606B').margin({ bottom: 3 }) }
+      }.alignItems(VerticalAlign.Bottom)
+    }.width('100%').alignItems(HorizontalAlign.Center)
+  }
+}
+
 /** 结余卡下方的小栏位；用 @Prop 组件而非按值传参的 @Builder，数据加载后才会刷新。 */
 @Component
 export struct StatCell {

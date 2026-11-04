@@ -7,7 +7,7 @@ import { DashboardTab } from '../components/DashboardTab';
 import { KnowledgeTab } from '../components/KnowledgeTab';
 import { ProfileTab } from '../components/ProfileTab';
 import { AppIcon, DevelopmentBanner } from '../components/DesignSystem';
-import { Theme } from '../common/Theme';
+import { Theme, Passbook } from '../common/Theme';
 
 // 尊重用户关闭动效的选择，重新打开应用时仍保留。
 PersistentStorage.persistProp('gentleMotion', true);
@@ -19,11 +19,14 @@ struct NavItem {
   @Link currentTab: number;
   @Prop destinationIndex: number = 0;
   build() {
-    Column({ space: 5 }) {
-      AppIcon({ name: this.icon, iconSize: 23, color: this.currentTab === this.destinationIndex ? Theme.green : '#89968A' })
+    Column({ space: 4 }) {
+      Stack() {
+        AppIcon({ name: this.icon, iconSize: 22, color: Passbook.print })
+          .opacity(this.currentTab === this.destinationIndex ? 1 : 0.38)
+      }.width(52).height(30).borderRadius(15)
+      .backgroundColor(this.currentTab === this.destinationIndex ? Passbook.wash : Color.Transparent)
       Text(this.label).fontSize(11).fontWeight(this.currentTab === this.destinationIndex ? FontWeight.Medium : FontWeight.Regular)
-        .fontColor(this.currentTab === this.destinationIndex ? Theme.green : Theme.muted)
-      Circle().width(3).height(3).fill(this.currentTab === this.destinationIndex ? Theme.green : Color.Transparent)
+        .fontColor(this.currentTab === this.destinationIndex ? Passbook.print : Passbook.faint)
     }.width('100%').height(66).justifyContent(FlexAlign.Center)
       .id(`nav-${this.destinationIndex}-${this.currentTab === this.destinationIndex ? 'selected' : 'idle'}`)
       .accessibilityGroup(true).accessibilityText(this.label + (this.currentTab === this.destinationIndex ? '，已选中' : ''))
@@ -74,8 +77,8 @@ struct Index {
           TabContent() { DashboardTab({ tick: this.tick, ledgerFrom: $ledgerFilterFrom, ledgerTo: $ledgerFilterTo }) }.tabBar(this.chartNav)
           TabContent() { KnowledgeTab({ tick: this.tick }) }.tabBar(this.bookNav)
           TabContent() { ProfileTab({ tick: $tick }) }.tabBar(this.userNav)
-        }.barMode(BarMode.Fixed).barHeight(72).barBackgroundColor(Theme.bg)
-          .divider({ strokeWidth: 0.5, color: Theme.line })
+        }.barMode(BarMode.Fixed).barHeight(72).barBackgroundColor(Passbook.page)
+          .divider({ strokeWidth: 0.5, color: Passbook.rule })
           .onChange((index: number) => { this.activeTab = index; this.tick++; })
           .width('100%').layoutWeight(1)
       } else {
@@ -85,6 +88,6 @@ struct Index {
           Text(this.bootMessage.length > 0 ? this.bootMessage : '正在翻开你的绿色存折…').fontSize(13).fontColor(Theme.muted)
         }.width('100%').height('100%').justifyContent(FlexAlign.Center)
       }
-    }.width('100%').height('100%').backgroundColor(Theme.bg)
+    }.width('100%').height('100%').backgroundColor(Passbook.page)
   }
 }
