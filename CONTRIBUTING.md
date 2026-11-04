@@ -1,6 +1,8 @@
 # 团队协作
 
-从README进入当前1.2.0协作资料。建议用`feature/简短名称`或`fix/简短名称`分支，经Pull Request审核后合入main。
+从README进入当前1.2.0协作资料。使用`feature/简短名称`或`fix/简短名称`分支，经Pull Request合入main。
+
+`main` 已开启分支保护：所有修改必须经 PR，禁止直接推送、强制推送及删除，管理员同样受约束；合并前须解决审查讨论。当前批准人数设为0，允许负责人独立合并；云端CI仍待另行启用，未配置必需的状态检查。
 
 - 改前先运行`npm ci --ignore-scripts`和`npm test`；首次构建前运行`bash scripts/fetch-model.sh`下载端侧模型；业务改动后运行相关回归，页面改动还需release编译及原生截图。
 - 不把本地数据库、测试备份、签名密钥、账号凭证或依赖目录加入提交。
