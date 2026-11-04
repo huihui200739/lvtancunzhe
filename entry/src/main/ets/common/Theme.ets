@@ -1,6 +1,6 @@
 /** Calm botanical design tokens. All dimensions are vp. */
 export class Theme {
-  static readonly bg: string = '#F6F6F0';
+  static readonly bg: string = '#F3F0E7';
   static readonly paper: string = '#FFFFFF';
   static readonly ink: string = '#203B33';
   static readonly green: string = '#244E40';
@@ -16,6 +16,18 @@ export class Theme {
   static readonly chartGrid: string = '#EEF1E9';
   static readonly chartText: string = '#8A968B';
   static readonly chartArea: string = '#29244E40';
+}
+
+/** 存折纸面：账页、格线、印泥。印章红只用于记账状态，不作装饰。 */
+export class Passbook {
+  static readonly sheet: string = '#FBF9F3';
+  static readonly rule: string = '#DCD4C1';
+  static readonly ruleStrong: string = '#B9AE94';
+  static readonly print: string = '#1E3A2F';
+  static readonly faint: string = '#857F6B';
+  static readonly seal: string = '#B23F28';
+  static readonly mono: string = 'monospace';
+  static readonly serif: string = 'Noto Serif CJK JP, serif';
 }
 
 export function iconResource(name: string, color: string = Theme.green): Resource {

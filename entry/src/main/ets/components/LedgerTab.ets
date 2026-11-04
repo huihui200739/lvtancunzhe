@@ -4,17 +4,95 @@ import { LedgerDb } from '../services/LedgerDb';
 import { AppService } from '../services/AppService';
 import { RecordService } from '../services/RecordService';
 import { PointService } from '../services/PointService';
+import { PlanService } from '../services/PlanService';
+import { ActionCoachService, ActionRecommendation } from '../services/ActionCoachService';
 import { RecordListItem } from '../models/UiModels';
-import { BehaviorRecord, CalculationSnapshot } from '../models/RecordModels';
+import { BehaviorRecord, CalculationSnapshot, VoucherFactorSource } from '../models/RecordModels';
+import { ScenarioResult } from '../models/CalcModels';
+import { PlanConstraints, PlanOutcome } from '../models/PlanModels';
 import { PointAccountView } from '../models/PointModels';
-import { categoryName, gasUnitLabel, RecordStatus } from '../common/Domain';
-import { Theme, categoryIcon } from '../common/Theme';
-import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, BreathingPlant } from './DesignSystem';
+import { BehaviorCategory, categoryName, gasUnitLabel, RecordStatus, ScenarioRole } from '../common/Domain';
+import { Theme, Passbook, categoryIcon } from '../common/Theme';
+import { AppIcon, Notice } from './DesignSystem';
+import { Seal, DoubleRule, DashedRule, StatCell } from './Passbook';
 import { DateUtil, NumUtil } from '../common/Format';
 
+/** 账页一行：记录 + 该口径下截至此笔的结余 */
+interface LedgerLine {
+  item: RecordListItem;
+  balance: number;
+  counted: boolean;
+}
+
+/** 存入单：四类已开放核算的行为入口，提示语写明适用条件 */
+interface SlipDef {
+  category: string;
+  no: string;
+  title: string;
+  hint: string;
+}
+
+const SLIPS: SlipDef[] = [
+  { category: 'travel', no: '01', title: '换种出行', hint: '步行骑车，替代驾车' },
+  { category: 'water_energy', no: '02', title: '省下的电', hint: '有对照电量的节电' },
+  { category: 'recycling', no: '03', title: '废纸再生', hint: '仅限已确认再生利用' },
+  { category: 'food', no: '04', title: '少买不浪费', hint: '有采购对照的苹果' }
+];
+
+function shortCategory(category: BehaviorCategory): string {
+  if (category === BehaviorCategory.TRAVEL) { return '出行'; }
+  if (category === BehaviorCategory.WATER_ENERGY) { return '节能'; }
+  if (category === BehaviorCategory.RECYCLING) { return '回收'; }
+  return '食物';
+}
+
+function plainLabel(label: string): string {
+  return label.replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '').trim();
+}
+
+/** 账页摘要直接取冻结快照里的情景名，不重新计算、不另造描述 */
+function describeSnapshot(snap: CalculationSnapshot, category: BehaviorCategory): string {
+  try {
+    const scenarios = JSON.parse(snap.scenariosJson) as ScenarioResult[];
+    let baseline = '';
+    let actual = '';
+    for (const s of scenarios) {
+      if (s.role === ScenarioRole.ACTUAL) {
+        actual = plainLabel(s.scenarioLabel);
+      } else if (baseline.length === 0) {
+        baseline = plainLabel(s.scenarioLabel);
+      }
+    }
+    if (actual.length > 0 && baseline.length > 0) { return `${actual}替代${baseline}`; }
+    if (baseline.length > 0) { return `${shortCategory(category)} · ${baseline}`; }
+    return categoryName(category);
+  } catch (e) {
+    return categoryName(category);
+  }
+}
+
+/** “核”章只说明计算依据已核对，不代表行为本身经过认证 */
+function sourcesVerified(snap: CalculationSnapshot): boolean {
+  try {
+    const sources = JSON.parse(snap.factorSourcesJson) as VoucherFactorSource[];
+    return sources.length > 0 && sources.every((s: VoucherFactorSource) => s.reviewStatus === 'verified');
+  } catch (e) {
+    return false;
+  }
+}
+
+function planUnitOf(constraintsJson: string): string {
+  try {
+    const c = JSON.parse(constraintsJson) as PlanConstraints;
+    return c.gasScope === 'CO2e' ? 'kgCO₂e' : (c.gasScope === 'CO2' ? 'kgCO₂' : 'kg');
+  } catch (e) {
+    return 'kg';
+  }
+}
+
 /**
- * 存折 Tab（第 3.2 节主链路）：积分余额、已记录行为列表、记一笔入口。
- * 数值与口径来自快照，页面不重新计算。
+ * 存折首页：一本按口径分页的减排存折。
+ * 结余 = 逐笔「原本做法排放 − 实际做法排放」之和；数值全部来自冻结快照，页面不重新计算。
  */
 @Component
 export struct LedgerTab {
@@ -26,13 +104,16 @@ export struct LedgerTab {
   @State scopes: string[] = [];
   @State items: RecordListItem[] = [];
   @State visibleCount: number = 50;
-  @State balance: number = 0;
-  @State earned: number = 0;
-  @State spent: number = 0;
+  @State points: number = 0;
   @State shortfall: number = 0;
   @State suspended: boolean = false;
   @State testMode: boolean = false;
   @State message: string = '';
+  @State todayAction: ActionRecommendation | null = null;
+  @State hasPlan: boolean = false;
+  @State planUnit: string = 'kg';
+  /** 由首页容器切到计划 Tab */
+  onOpenPlan: () => void = () => {};
 
   aboutToAppear(): void {
     this.reload();
@@ -43,7 +124,9 @@ export struct LedgerTab {
   }
 
   private async reload(): Promise<void> {
-    return LedgerOperations.run(() => this.reloadUnlocked());
+    await LedgerOperations.run(() => this.reloadUnlocked());
+    // latestPlan 自行排队，不能放进上面的队列内部调用
+    await this.loadTodayAction();
   }
 
   private async reloadUnlocked(): Promise<void> {
@@ -66,7 +149,9 @@ export struct LedgerTab {
           reductionKg: snap.reductionKg,
           isNetIncrease: snap.isNetIncrease,
           gasScope: gasUnitLabel(snap.gasScope),
-          categoryLabel: categoryName(r.category)
+          categoryLabel: categoryName(r.category),
+          summary: describeSnapshot(snap, r.category),
+          verified: sourcesVerified(snap)
         });
       }
       this.items = list;
@@ -77,9 +162,7 @@ export struct LedgerTab {
       this.scopes = scopes;
       if (scopes.length > 0 && scopes.indexOf(this.selectedScope) < 0) { this.selectedScope = scopes[0]; }
       const acc: PointAccountView = await PointService.account(db);
-      this.balance = acc.balance;
-      this.earned = acc.earned;
-      this.spent = acc.spent;
+      this.points = acc.balance;
       this.shortfall = acc.shortfall;
       this.suspended = acc.redeemSuspended;
       this.message = '';
@@ -88,13 +171,73 @@ export struct LedgerTab {
     }
   }
 
-  /** 按日期区间筛选后的记录（不改累计与积分，仅影响列表展示） */
-  private visibleItems(): RecordListItem[] {
-    if (this.filterFrom.length === 0) {
-      return this.items;
+  /** 今日一笔：只取已保存七日计划里今天起最近的未完成任务，不自动生成或完成任务 */
+  private async loadTodayAction(): Promise<void> {
+    if (!AppService.isReady()) {
+      return;
     }
+    try {
+      const latest: PlanOutcome | null = await PlanService.latestPlan(LedgerDb.get());
+      if (latest === null || latest.plan === null) {
+        this.hasPlan = false;
+        this.todayAction = null;
+        return;
+      }
+      this.hasPlan = true;
+      this.planUnit = planUnitOf(latest.plan.constraintsJson);
+      const picks: ActionRecommendation[] = ActionCoachService.recommend(latest.tasks, DateUtil.today(), 1);
+      this.todayAction = picks.length > 0 ? picks[0] : null;
+    } catch (e) {
+      this.todayAction = null;
+    }
+  }
+
+  /** 当前口径的账页：按发生顺序累计结余，再按看板传来的区间筛选显示 */
+  private ledgerLines(): LedgerLine[] {
+    const out: LedgerLine[] = [];
+    let running = 0;
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const item = this.items[i];
+      if (item.gasScope !== this.selectedScope) {
+        continue;
+      }
+      const counted = item.record.status !== RecordStatus.VOIDED;
+      if (counted) {
+        running += item.reductionKg;
+      }
+      out.push({ item: item, balance: running, counted: counted });
+    }
+    out.reverse();
+    if (this.filterFrom.length === 0) {
+      return out;
+    }
+    return out.filter((line: LedgerLine) =>
+      line.item.record.occurredAt >= this.filterFrom && line.item.record.occurredAt <= this.filterTo);
+  }
+
+  private netTotal(): number {
+    let total = 0;
+    for (const item of this.items) {
+      if (item.record.status !== RecordStatus.VOIDED && item.gasScope === this.selectedScope) { total += item.reductionKg; }
+    }
+    return total;
+  }
+
+  private monthNet(): number {
+    const month = DateUtil.monthKey(DateUtil.today());
+    let total = 0;
+    for (const item of this.items) {
+      if (item.record.status !== RecordStatus.VOIDED && item.gasScope === this.selectedScope &&
+        DateUtil.monthKey(item.record.occurredAt) === month) {
+        total += item.reductionKg;
+      }
+    }
+    return total;
+  }
+
+  private depositCount(): number {
     return this.items.filter((item: RecordListItem) =>
-      item.record.occurredAt >= this.filterFrom && item.record.occurredAt <= this.filterTo);
+      item.record.status !== RecordStatus.VOIDED && item.gasScope === this.selectedScope).length;
   }
 
   private filterLabel(): string {
@@ -191,150 +334,268 @@ export struct LedgerTab {
     return last < 10 ? `0${last}` : `${last}`;
   }
 
-  private netTotal(): number {
-    let total = 0;
-    for (const item of this.items) {
-      if (item.record.status !== RecordStatus.VOIDED && item.gasScope === this.selectedScope) { total += item.reductionKg; }
-    }
-    return total;
-  }
-  private validCount(): number {
-    return this.items.filter((item: RecordListItem) => item.record.status !== RecordStatus.VOIDED).length;
-  }
   private openEntry(category: string): void {
     router.pushUrl({ url: 'pages/RecordEntry', params: { category: category } });
   }
+
+  private openAction(action: ActionRecommendation): void {
+    router.pushUrl({
+      url: action.participationOnly ? 'pages/ParticipationPage' : 'pages/RecordEntry',
+      params: { planTaskId: action.planTaskId, category: action.category }
+    });
+  }
+
   build() {
     Scroll() {
       Column() {
-        Row() {
-          Column({ space: 6 }) {
-            Text('绿碳存折').fontSize(12).fontColor(Theme.muted)
-            Text('校园低碳行动账本').fontSize(25).lineHeight(36).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
-          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          AppIcon({ name: 'leaf', iconSize: 28, color: '#8B9E79' })
-        }.width('100%').margin({ top: 18, bottom: 26 })
-        Stack({ alignContent: Alignment.End }) {
-          BreathingPlant({ active: this.active }).margin({ right: 6 })
-            .opacity(this.getUIContext().fp2px(1) > this.getUIContext().vp2px(1) * 1.2 ? 0.16 : 1)
-          Column({ space: 9 }) {
-            Text('每笔记录\n都留有依据').fontSize(25).lineHeight(36)
-              .fontWeight(FontWeight.Medium).fontColor('#FFFFFF')
-            Text('累计记录 · 相对基准情景的净变化').fontSize(12).fontColor('#BFCEC1').margin({ top: 12 })
-            Row({ space: 6 }) {
-              Text(NumUtil.show(this.netTotal())).fontSize(37).fontWeight(FontWeight.Medium).fontColor(Theme.lime)
-                .fontFeature('"tnum" on')
-                .maxLines(1).minFontSize(20).maxFontSize(37).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).flexShrink(1).constraintSize({ maxWidth: '80%' })
-              Text(this.selectedScope).fontSize(11).fontColor('#BFCEC1').margin({ top: 17 }).flexShrink(0)
-            }.width('100%')
-            if (this.scopes.length > 1) {
-              Row({ space: 10 }) {
-                ForEach(this.scopes, (scope: string) => {
-                  Text(scope).fontSize(11).fontColor(this.selectedScope === scope ? Theme.lime : '#BFCEC1')
-                    .padding({ top: 6, bottom: 6 }).onClick(() => { this.selectedScope = scope; })
-                }, (scope: string) => scope)
-              }
-            }
-          }.width('100%').alignItems(HorizontalAlign.Start).padding(24)
-        }.width('100%').backgroundColor(Theme.green).borderRadius(Theme.heroRadius).clip(true)
-        Row() {
-          Column({ space: 6 }) {
-            Text(`${this.validCount()} 件`).fontSize(22).fontWeight(FontWeight.Medium).fontColor(Theme.ink).width('100%').maxLines(1)
-            Text('已记录的绿色行动').fontSize(11).fontColor(Theme.muted).width('100%').maxLines(2).lineHeight(18)
-          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          Column({ space: 6 }) {
-            Text(`${this.balance} 分`).fontSize(22).fontWeight(FontWeight.Medium).fontColor(Theme.ink).width('100%').maxLines(1)
-            Text('我的可用积分').fontSize(11).fontColor(Theme.muted).width('100%').maxLines(2).lineHeight(18)
-          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          Button({ type: ButtonType.Normal }) { AppIcon({ name: 'plus', iconSize: 24, color: Theme.paper }) }
-            .width(48).height(48).borderRadius(24).backgroundColor(Theme.green)
-            .accessibilityText('记一笔绿色行动').onClick(() => this.openEntry(''))
-        }.width('100%').padding({ left: 6, right: 6, top: 24, bottom: 4 })
-        SectionHeading({ title: '记录一项行动' })
+        this.masthead()
+        this.balanceSheet()
+        this.todaySlip()
+        this.sectionTitle('填一张存入单', '只记真实发生的')
         Row({ space: 10 }) {
-          this.categoryTile('travel', '绿色出行', '换种方式')
-          this.categoryTile('water_energy', '节约能源', '少一点消耗')
+          this.slip(SLIPS[0])
+          this.slip(SLIPS[1])
         }.width('100%')
         Row({ space: 10 }) {
-          this.categoryTile('recycling', '旧物再生', '仅限实际再生利用')
-          this.categoryTile('food', '减少食物采购', '需要真实采购对照')
+          this.slip(SLIPS[2])
+          this.slip(SLIPS[3])
         }.width('100%').margin({ top: 10 })
-        if (this.filterFrom.length > 0) {
-          Column({ space: 6 }) {
-            Row({ space: 6 }) {
-              Text('‹').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
-                .onClick(() => this.shiftFilter(-1))
-              Text(this.filterLabel()).fontSize(12).fontColor(Theme.ink).layoutWeight(1).maxLines(2)
-              Text('›').fontSize(16).fontColor(Theme.green).width(28).height(28).textAlign(TextAlign.Center)
-                .onClick(() => this.shiftFilter(1))
-            }.width('100%')
-            Row() {
-              Text('最近记录').fontSize(11).fontColor(Theme.green)
-                .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                .backgroundColor(Theme.paper).borderRadius(Theme.controlRadius)
-                .onClick(() => this.jumpToLatestRecord())
-              Blank()
-              Text('显示全部 ×').fontSize(11).fontColor(Theme.green)
-                .padding({ left: 6, right: 6, top: 6, bottom: 6 })
-                .onClick(() => { this.filterFrom = ''; this.filterTo = ''; })
-            }.width('100%')
-          }.width('100%').padding({ left: 10, right: 10, top: 8, bottom: 8 })
-            .backgroundColor(Theme.sage).borderRadius(Theme.controlRadius)
-          Text('上方累计数字与积分仍为全部有效记录；此处只筛列表。').fontSize(10).fontColor(Theme.muted).width('100%')
-        }
         if (this.suspended) { Notice({ text: `积分待补足 ${this.shortfall} 分，兑换暂时暂停。`, warning: true }).margin({ top: 16 }) }
-        SectionHeading({ title: '最近记录', detail: '点击查看凭证' })
-        if (this.message.length > 0) { Notice({ text: this.message, warning: true }) }
-        if (this.items.length === 0) {
-          EmptyState({ title: '还没有记录', detail: '记下一次真实行动，查看估算结果和对应依据。' })
-        } else if (this.visibleItems().length === 0) {
-          EmptyState({ title: '这段时间没有记录', detail: '可以用 ‹ › 换区间，或点「显示全部 ×」回到完整列表。' })
-        } else {
-          ForEach(this.visibleItems().slice(0, this.visibleCount), (item: RecordListItem) => { this.recordCard(item); },
-            (item: RecordListItem) => `${item.record.recordId}#${item.record.revision}#${item.record.status}`)
+        if (this.message.length > 0) { Notice({ text: this.message, warning: true }).margin({ top: 16 }) }
+        this.sectionTitle(`${this.selectedScope} 账页`, '点任一行，查看凭证')
+        if (this.filterFrom.length > 0) {
+          this.filterBar()
         }
-        if (this.filterFrom.length === 0 && this.items.length > this.visibleCount) {
-          Button(`继续查看 · 已显示 ${Math.min(this.visibleCount, this.items.length)} / ${this.items.length} 条`).fontSize(12).height(46).width('100%')
-            .fontColor(Theme.green).backgroundColor(Theme.sage).onClick(() => { this.visibleCount += 50; })
-        }
+        this.ledgerSheet()
         if (this.testMode) {
           Notice({ text: '开发预览 · 含未核验因子，数值仅供联调，不得用于参赛材料与对外结论。', warning: true }).margin({ top: 20 })
         }
-        Text('小步改变，也值得认真记下。').fontSize(11).fontColor(Theme.muted).margin({ top: 28, bottom: 24 })
-      }.width('100%').padding({ left: 24, right: 24 }).alignItems(HorizontalAlign.Start)
+        Text('数量由你申报、未经独立核实；结余是按公开因子的估算，不是经核证的碳资产。')
+          .fontSize(11).lineHeight(18).fontColor(Passbook.faint).width('100%').margin({ top: 20, bottom: 28 })
+      }.width('100%').padding({ left: 20, right: 20 }).alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).scrollBar(BarState.Off).backgroundColor(Theme.bg)
   }
+
   @Builder
-  categoryTile(category: string, title: string, subtitle: string) {
-    Row({ space: 10 }) {
-      AppIcon({ name: categoryIcon(category), iconSize: 24 })
-      Column({ space: 5 }) {
-        Text(title).fontSize(14).fontWeight(FontWeight.Medium).fontColor(Theme.ink).width('100%').maxLines(2)
-        Text(subtitle).fontSize(11).lineHeight(16).fontColor(Theme.muted).width('100%').maxLines(2)
+  masthead() {
+    Row() {
+      Column({ space: 2 }) {
+        Text('GREEN CARBON PASSBOOK').fontSize(9).fontFamily(Passbook.mono).letterSpacing(2).fontColor(Passbook.faint)
+        Text('绿碳存折').fontSize(30).fontWeight(FontWeight.Bold).fontFamily(Passbook.serif).fontColor(Passbook.print)
       }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-    }.layoutWeight(1).constraintSize({ minHeight: 86 }).padding(16).backgroundColor(Theme.paper)
-      .border({ width: 1, color: Theme.line })
-      .borderRadius(Theme.cardRadius)
-      .onClick(() => this.openEntry(category))
-  }
-  @Builder
-  recordCard(item: RecordListItem) {
-    Row({ space: 13 }) {
-      Stack() { AppIcon({ name: categoryIcon(item.record.category), iconSize: 22 }) }
-        .width(44).height(44).borderRadius(Theme.controlRadius).backgroundColor(Theme.sage)
-      Column({ space: 7 }) {
-        Text(`${item.categoryLabel} · ${item.record.quantity} ${item.record.unit}`)
-          .fontSize(14).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
-        Text(`${item.record.occurredAt.substring(5, 10)}  ·  ${item.record.status === RecordStatus.VOIDED ? '已撤销' : '可追溯凭证'}  ·  v${item.record.revision}`)
-          .fontSize(11).fontColor(Theme.muted)
-      }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-      Column({ space: 6 }) {
-        Text(NumUtil.signed(item.reductionKg, 2)).fontSize(18).fontWeight(FontWeight.Medium).fontFeature('"tnum" on')
-          .fontColor(item.record.status === RecordStatus.VOIDED ? Theme.muted : (item.isNetIncrease ? Theme.rust : Theme.green))
-        Text(item.gasScope).fontSize(11).fontColor(Theme.muted)
+      Column({ space: 4 }) {
+        Text(DateUtil.today().replace(/-/g, '.')).fontSize(12).fontFamily(Passbook.mono).fontColor(Passbook.print)
+        Text('本机离线账本').fontSize(10).fontColor(Passbook.faint)
       }.alignItems(HorizontalAlign.End)
-    }.width('100%').padding(16).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ bottom: 10 })
-      .opacity(item.record.status === RecordStatus.VOIDED ? 0.55 : 1)
-      .onClick(() => { router.pushUrl({ url: 'pages/VoucherPage', params: { recordId: item.record.recordId, revision: item.record.revision } }); })
+    }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 18, bottom: 16 })
+  }
+
+  @Builder
+  balanceSheet() {
+    Column() {
+      Row() {
+        Text('本折结余').fontSize(12).fontColor(Passbook.faint)
+        Blank()
+        if (this.scopes.length > 1) {
+          Row() {
+            ForEach(this.scopes, (scope: string) => {
+              Text(scope).fontSize(11).fontFamily(Passbook.mono)
+                .fontColor(this.selectedScope === scope ? Passbook.sheet : Passbook.print)
+                .backgroundColor(this.selectedScope === scope ? Passbook.print : Color.Transparent)
+                .padding({ left: 9, right: 9, top: 5, bottom: 5 })
+                .accessibilityText(`切换到 ${scope} 账页`)
+                .onClick(() => { this.selectedScope = scope; })
+            }, (scope: string) => scope)
+          }.border({ width: 1, color: Passbook.print }).borderRadius(2).clip(true)
+        } else {
+          Text(this.selectedScope).fontSize(11).fontFamily(Passbook.mono).fontColor(Passbook.faint)
+        }
+      }.width('100%')
+      Row({ space: 8 }) {
+        Text(NumUtil.show(this.netTotal())).fontSize(52).fontWeight(FontWeight.Medium).fontFamily(Passbook.mono)
+          .fontColor(Passbook.print).fontFeature('"tnum" on')
+          .maxLines(1).minFontSize(26).maxFontSize(52).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
+          .flexShrink(1)
+        Text(this.selectedScope).fontSize(13).fontColor(Passbook.faint).margin({ bottom: 11 }).flexShrink(0)
+      }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 4 })
+      Text('每一笔 = 原本做法的排放 − 这次实际的排放').fontSize(11).fontColor(Passbook.faint).width('100%')
+      DashedRule().margin({ top: 16, bottom: 14 })
+      Row() {
+        StatCell({ label: '存入', value: `${this.depositCount()} 笔` }).layoutWeight(1)
+        StatCell({ label: '本月', value: NumUtil.signed(this.monthNet(), 2) }).layoutWeight(1)
+        StatCell({ label: '积分', value: `${this.points}` }).layoutWeight(1)
+      }.width('100%')
+    }
+    .width('100%').padding({ left: 18, right: 18, top: 16, bottom: 16 })
+    .backgroundColor(Passbook.sheet)
+    .border({
+      width: { left: 5, top: 1, right: 1, bottom: 1 },
+      color: { left: Passbook.print, top: Passbook.rule, right: Passbook.rule, bottom: Passbook.rule }
+    })
+    .borderRadius(4)
+    .shadow({ radius: 14, color: '#16302A1A', offsetY: 5 })
+    .accessibilityGroup(true)
+    .accessibilityText(`本折结余 ${NumUtil.show(this.netTotal())} ${this.selectedScope}，存入 ${this.depositCount()} 笔，可用积分 ${this.points}`)
+  }
+
+  @Builder
+  todaySlip() {
+    Row({ space: 14 }) {
+      Column({ space: 2 }) {
+        Text('今日').fontSize(10).fontColor('#C9D3C2')
+        Text(DateUtil.today().substring(8)).fontSize(24).fontFamily(Passbook.mono).fontColor(Passbook.sheet)
+      }.width(54).padding({ top: 9, bottom: 9 }).backgroundColor(Passbook.print).borderRadius(3)
+      Column({ space: 4 }) {
+        if (this.todayAction !== null) {
+          Text(`${this.todayAction!.isToday ? '今天' : this.todayAction!.day.substring(5)} · 来自你的七日计划`)
+            .fontSize(10).fontColor(Passbook.faint)
+          Text(this.todayAction!.title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Passbook.print)
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.todayAction!.participationOnly ? '参与任务 · 只记参与，不计 kg'
+            : `预计 ${NumUtil.show(this.todayAction!.expectedKg)} ${this.planUnit} · 额外 ${this.todayAction!.extraMinutes} 分钟`)
+            .fontSize(11).fontColor(Passbook.faint).maxLines(1)
+        } else if (this.hasPlan) {
+          Text('七日计划').fontSize(10).fontColor(Passbook.faint)
+          Text('近七天的任务都处理完了').fontSize(15).fontWeight(FontWeight.Medium).fontColor(Passbook.print)
+          Text('想多做一点，可以重新排一周').fontSize(11).fontColor(Passbook.faint)
+        } else {
+          Text('七日计划').fontSize(10).fontColor(Passbook.faint)
+          Text('还没有这一周的安排').fontSize(15).fontWeight(FontWeight.Medium).fontColor(Passbook.print)
+          Text('按你的时间、费用和出行习惯排七天').fontSize(11).fontColor(Passbook.faint)
+        }
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+      AppIcon({ name: 'arrow', iconSize: 18 })
+    }
+    .width('100%').padding(10).margin({ top: 14 })
+    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(4)
+    .accessibilityGroup(true)
+    .accessibilityText(this.todayAction !== null ? `今日一笔：${this.todayAction!.title}` : '打开七日计划')
+    .onClick(() => {
+      if (this.todayAction !== null) {
+        this.openAction(this.todayAction!);
+      } else {
+        this.onOpenPlan();
+      }
+    })
+  }
+
+  @Builder
+  sectionTitle(title: string, detail: string) {
+    Row() {
+      Text(title).fontSize(17).fontWeight(FontWeight.Bold).fontFamily(Passbook.serif).fontColor(Passbook.print).layoutWeight(1)
+      Text(detail).fontSize(11).fontColor(Passbook.faint)
+    }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 26, bottom: 12 })
+  }
+
+  @Builder
+  slip(def: SlipDef) {
+    Column({ space: 5 }) {
+      Row() {
+        Text(`存入单 ${def.no}`).fontSize(9).fontFamily(Passbook.mono).letterSpacing(1).fontColor(Passbook.faint)
+        Blank()
+        AppIcon({ name: categoryIcon(def.category), iconSize: 20 })
+      }.width('100%')
+      Text(def.title).fontSize(16).fontWeight(FontWeight.Bold).fontFamily(Passbook.serif).fontColor(Passbook.print)
+        .margin({ top: 8 })
+      Text(def.hint).fontSize(11).lineHeight(16).fontColor(Passbook.faint).maxLines(2)
+    }
+    .layoutWeight(1).height(104).alignItems(HorizontalAlign.Start).padding(14)
+    .backgroundColor(Passbook.sheet)
+    .border({ width: 1, color: Passbook.ruleStrong, style: BorderStyle.Dashed }).borderRadius(4)
+    .accessibilityGroup(true).accessibilityText(`填写存入单：${def.title}，${def.hint}`)
+    .onClick(() => this.openEntry(def.category))
+  }
+
+  @Builder
+  filterBar() {
+    Column({ space: 6 }) {
+      Row({ space: 6 }) {
+        Text('‹').fontSize(16).fontColor(Passbook.print).width(28).height(28).textAlign(TextAlign.Center)
+          .onClick(() => this.shiftFilter(-1))
+        Text(this.filterLabel()).fontSize(12).fontColor(Passbook.print).layoutWeight(1).maxLines(2)
+        Text('›').fontSize(16).fontColor(Passbook.print).width(28).height(28).textAlign(TextAlign.Center)
+          .onClick(() => this.shiftFilter(1))
+      }.width('100%')
+      Row() {
+        Text('最近记录').fontSize(11).fontColor(Passbook.print)
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .border({ width: 1, color: Passbook.rule }).borderRadius(3)
+          .onClick(() => this.jumpToLatestRecord())
+        Blank()
+        Text('显示全部 ×').fontSize(11).fontColor(Passbook.print)
+          .padding({ left: 6, right: 6, top: 6, bottom: 6 })
+          .onClick(() => { this.filterFrom = ''; this.filterTo = ''; })
+      }.width('100%')
+      Text('结余仍按全部有效记录累计；这里只筛选显示的行。').fontSize(10).fontColor(Passbook.faint).width('100%')
+    }.width('100%').padding({ left: 10, right: 10, top: 8, bottom: 8 }).margin({ bottom: 10 })
+    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(4)
+  }
+
+  @Builder
+  ledgerSheet() {
+    Column() {
+      Row() {
+        Text('日期').fontSize(10).fontColor(Passbook.faint).width(42)
+        Text('摘要').fontSize(10).fontColor(Passbook.faint).layoutWeight(1)
+        Text('存入').fontSize(10).fontColor(Passbook.faint).width(62).textAlign(TextAlign.End)
+        Text('结余').fontSize(10).fontColor(Passbook.faint).width(54).textAlign(TextAlign.End)
+        Text('').width(30)
+      }.width('100%')
+      DoubleRule().margin({ top: 6 })
+      if (this.items.length === 0) {
+        Text('账页还是空的。从上面任意一张存入单，记下第一笔。').fontSize(12).lineHeight(20).fontColor(Passbook.faint)
+          .width('100%').padding({ top: 22, bottom: 22 }).textAlign(TextAlign.Center)
+      } else if (this.ledgerLines().length === 0) {
+        Text('这段时间在本账页没有记录。可以用 ‹ › 换区间，或显示全部。').fontSize(12).lineHeight(20).fontColor(Passbook.faint)
+          .width('100%').padding({ top: 22, bottom: 22 }).textAlign(TextAlign.Center)
+      } else {
+        ForEach(this.ledgerLines().slice(0, this.visibleCount), (line: LedgerLine, index: number) => {
+          this.ledgerRow(line, index === 0)
+        }, (line: LedgerLine) => `${line.item.record.recordId}#${line.item.record.revision}#${line.item.record.status}`)
+      }
+      if (this.filterFrom.length === 0 && this.ledgerLines().length > this.visibleCount) {
+        Text(`继续翻页 · 已显示 ${this.visibleCount} / ${this.ledgerLines().length} 笔`).fontSize(12).fontColor(Passbook.print)
+          .width('100%').textAlign(TextAlign.Center).padding({ top: 14, bottom: 6 })
+          .onClick(() => { this.visibleCount += 50; })
+      }
+    }
+    .width('100%').padding({ left: 14, right: 10, top: 12, bottom: 6 })
+    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(4)
+  }
+
+  @Builder
+  ledgerRow(line: LedgerLine, newest: boolean) {
+    Column() {
+      Row() {
+        Text(line.item.record.occurredAt.substring(5).replace('-', '.')).fontSize(12).fontFamily(Passbook.mono)
+          .fontColor(Passbook.print).width(42)
+        Column({ space: 2 }) {
+          Text(line.item.summary).fontSize(13).fontColor(line.counted ? Passbook.print : Passbook.faint)
+            .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(`${line.item.record.quantity} ${line.item.record.unit} · 第 ${line.item.record.revision} 版`)
+            .fontSize(10).fontColor(Passbook.faint).maxLines(1)
+        }.layoutWeight(1).alignItems(HorizontalAlign.Start).padding({ right: 4 })
+        Text(NumUtil.signed(line.item.reductionKg, 2)).fontSize(13).fontFamily(Passbook.mono)
+          .fontColor(!line.counted ? Passbook.faint : (line.item.isNetIncrease ? Theme.rust : Passbook.print))
+          .decoration({ type: line.counted ? TextDecorationType.None : TextDecorationType.LineThrough, color: Passbook.faint })
+          .width(62).textAlign(TextAlign.End).maxLines(1).minFontSize(9).maxFontSize(13).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
+        Text(line.counted ? NumUtil.show(line.balance) : '—').fontSize(11).fontFamily(Passbook.mono)
+          .fontColor(Passbook.faint).width(54).textAlign(TextAlign.End).maxLines(1).minFontSize(8).maxFontSize(11).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST)
+        Stack() {
+          if (!line.counted) {
+            Seal({ label: '撤', sealSize: 22, angle: 8, color: Passbook.faint })
+          } else if (line.item.verified) {
+            Seal({ label: '核', sealSize: 22, stampIn: newest })
+          }
+        }.width(30).height(26)
+      }.width('100%').padding({ top: 11, bottom: 11 })
+      Row().width('100%').height(0.5).backgroundColor(Passbook.rule)
+    }
+    .width('100%')
+    .accessibilityGroup(true)
+    .accessibilityText(`${line.item.record.occurredAt}，${line.item.summary}，${line.counted ? '' : '已撤销，'}${NumUtil.signed(line.item.reductionKg, 2)} ${line.item.gasScope}，点击查看凭证`)
+    .onClick(() => {
+      router.pushUrl({ url: 'pages/VoucherPage', params: { recordId: line.item.record.recordId, revision: line.item.record.revision } });
+    })
   }
 }

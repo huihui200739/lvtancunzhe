@@ -12,6 +12,10 @@ export interface RecordListItem {
   isNetIncrease: boolean;
   gasScope: string;
   categoryLabel: string;
+  /** 账页摘要，如「步行 · 替代汽油驾车」，取自冻结快照里的情景名 */
+  summary: string;
+  /** 快照内全部因子来源已核对（只说明计算依据可查，不代表行为本身经过认证） */
+  verified: boolean;
 }
 
 /** 录入页路由参数 */

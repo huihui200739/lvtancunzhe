@@ -68,7 +68,8 @@ struct Index {
       if (this.ready) {
         DevelopmentBanner()
         Tabs({ barPosition: BarPosition.End, index: this.activeTab, controller: this.controller }) {
-          TabContent() { LedgerTab({ tick: this.tick, active: this.activeTab === 0 && this.pageVisible, filterFrom: $ledgerFilterFrom, filterTo: $ledgerFilterTo }) }.tabBar(this.ledgerNav)
+          TabContent() { LedgerTab({ tick: this.tick, active: this.activeTab === 0 && this.pageVisible, filterFrom: $ledgerFilterFrom, filterTo: $ledgerFilterTo,
+            onOpenPlan: () => { this.activeTab = 1; this.controller.changeIndex(1); } }) }.tabBar(this.ledgerNav)
           TabContent() { PlanTab({ tick: this.tick }) }.tabBar(this.planNav)
           TabContent() { DashboardTab({ tick: this.tick, ledgerFrom: $ledgerFilterFrom, ledgerTo: $ledgerFilterTo }) }.tabBar(this.chartNav)
           TabContent() { KnowledgeTab({ tick: this.tick }) }.tabBar(this.bookNav)
