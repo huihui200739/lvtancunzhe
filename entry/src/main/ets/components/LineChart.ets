@@ -1,4 +1,4 @@
-import { Theme } from '../common/Theme';
+import { Theme, Hue } from '../common/Theme';
 import { StatBucket } from '../models/StatsModels';
 
 interface ChartPoint {
@@ -157,7 +157,7 @@ export struct LineChart {
     ctx.lineWidth = 1;
     const rows: number[] = [padT, zeroY, padT + plotH];
     for (const y of rows) {
-      ctx.strokeStyle = y === zeroY ? '#CBD5C6' : Theme.chartGrid;
+      ctx.strokeStyle = y === zeroY ? '#D6D4CC' : Theme.chartGrid;
       ctx.beginPath();
       ctx.moveTo(padL, y);
       ctx.lineTo(padL + plotW, y);
@@ -183,7 +183,7 @@ export struct LineChart {
     const baseY = Math.max(padT, Math.min(padT + plotH, zeroY));
     const gradient = ctx.createLinearGradient(0, padT, 0, padT + plotH);
     gradient.addColorStop(0, Theme.chartArea);
-    gradient.addColorStop(1, '#00244E40');
+    gradient.addColorStop(1, '#003B63E0');
     ctx.beginPath();
     ctx.moveTo(points[0].x, baseY);
     ctx.lineTo(points[0].x, points[0].y);
@@ -196,7 +196,7 @@ export struct LineChart {
     // 曲线
     ctx.beginPath();
     this.traceCurve(points);
-    ctx.strokeStyle = Theme.green;
+    ctx.strokeStyle = Hue.travel;
     ctx.lineWidth = 2;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -206,7 +206,7 @@ export struct LineChart {
     const selected = this.indexOfSelected();
     if (selected >= 0 && selected < points.length) {
       const sp = points[selected];
-      ctx.strokeStyle = '#B9C8B6';
+      ctx.strokeStyle = '#C9CBD0';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(sp.x, padT);
@@ -214,7 +214,7 @@ export struct LineChart {
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(sp.x, sp.y, 6, 0, Math.PI * 2);
-      ctx.strokeStyle = Theme.green;
+      ctx.strokeStyle = Hue.travel;
       ctx.lineWidth = 1.6;
       ctx.stroke();
       if (this.data[selected].count > 0) {
@@ -224,7 +224,7 @@ export struct LineChart {
         const labelY = sp.y - 12 < padT + 14 ? sp.y + 20 : sp.y - 12;
         const labelX = Math.max(padL, Math.min(sp.x - textW / 2, padL + plotW - textW));
         // 纸色底衬，避免数值压住曲线看不清
-        ctx.fillStyle = Theme.paper;
+        ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(labelX - 3, labelY - 11, textW + 6, 15);
         ctx.fillStyle = Theme.ink;
         ctx.fillText(label, labelX, labelY);
@@ -243,11 +243,11 @@ export struct LineChart {
       const isLast = i === lastCounted;
       ctx.beginPath();
       ctx.arc(points[i].x, points[i].y, isLast ? 3.4 : 2.4, 0, Math.PI * 2);
-      ctx.fillStyle = Theme.green;
+      ctx.fillStyle = Hue.travel;
       ctx.fill();
       ctx.beginPath();
       ctx.arc(points[i].x, points[i].y, isLast ? 5.4 : 4.2, 0, Math.PI * 2);
-      ctx.strokeStyle = Theme.paper;
+      ctx.strokeStyle = '#FFFFFF';
       ctx.lineWidth = isLast ? 1.6 : 1.2;
       ctx.stroke();
     }

@@ -211,7 +211,7 @@ struct AiSettingsPage {
           Text('密钥保存在本机应用沙箱的偏好文件里，不写入账本数据库，不进入 JSON 备份、CSV 导出或应用日志；卸载应用即清除。若设备共用，请在使用后清除密钥。\n\n离线时 AI 请求会失败并给出提示，本地记录、计划、周报和模拟演练不依赖网络。')
             .fontSize(11).lineHeight(20).fontColor(Theme.muted).width('100%')
           Button('清除 API Key').height(46).fontSize(13).width('100%').fontColor(Theme.rust)
-            .backgroundColor('#FAEEE5').enabled(!this.busy).onClick(() => this.clearKey())
+            .backgroundColor('#FCEDE8').enabled(!this.busy).onClick(() => this.clearKey())
           Button('返回').height(46).fontSize(13).width('100%').fontColor(Theme.green)
             .backgroundColor(Theme.paper).onClick(() => router.back())
         }.width('100%').padding({ left: 24, right: 24, top: 8, bottom: 30 }).alignItems(HorizontalAlign.Start)

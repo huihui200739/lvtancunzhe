@@ -7,12 +7,12 @@ import { FigureExample } from '../services/FigureData';
  * 视觉规则：形状差异 + 文字标签双通道传达，不完全依赖颜色；文字与底色对比满足可读。
  */
 
-const CO2_INK: string = '#2F3E37';
-const WARN_RED: string = '#B3402F';
-const BLUE_DEEP: string = '#15508C';
-const PLUM_DEEP: string = '#5B4A78';
-const AMBER_DEEP: string = '#8A5300';
-const CARD_BG: string = '#FBF8F1';
+const CO2_INK: string = '#16181D';
+const WARN_RED: string = '#C8442C';
+const BLUE_DEEP: string = '#3B63E0';
+const PLUM_DEEP: string = '#0E8F6E';
+const AMBER_DEEP: string = '#C47F00';
+const CARD_BG: string = '#FFFFFF';
 
 /** 图卡通用样式（虚线边框 + 图注），各图自行以 Column 承接 */
 @Styles
@@ -58,9 +58,9 @@ export function FigureElec(vNational: number, vNonfossil: number, vFossil: numbe
   Column({ space: 8 }) {
     CardTitle('图 · 电力因子：同一个电，口径不同')
     Row({ space: 14 }) {
-      Bar(vNational, vFossil, '全国平均\nkgCO₂/kWh', vNational.toFixed(2), '#7FA7C6')
-      Bar(vNonfossil, vFossil, '不含市场化\n非化石电量', vNonfossil.toFixed(2), '#C4AC74')
-      Bar(vFossil, vFossil, '仅化石能源\n电力', vFossil.toFixed(2), '#D89C8E')
+      Bar(vNational, vFossil, '全国平均\nkgCO₂/kWh', vNational.toFixed(2), '#9FB3F0')
+      Bar(vNonfossil, vFossil, '不含市场化\n非化石电量', vNonfossil.toFixed(2), '#E3B85C')
+      Bar(vFossil, vFossil, '仅化石能源\n电力', vFossil.toFixed(2), '#EE9A84')
       Bar(vHenan, vFossil, '河南省级\n本项目用', vHenan.toFixed(2), Theme.green)
     }
     .width('100%')
@@ -79,14 +79,14 @@ export function FigureGas(paper: FigureExample, apple: FigureExample) {
     CardTitle('图 · 两种气体口径，分别取整')
     Row({ space: 16 }) {
       Column({ space: 6 }) {
-        Circle({ width: 60, height: 60 }).fill('#DCE8D2').stroke(CO2_INK).strokeWidth(1.4)
+        Circle({ width: 60, height: 60 }).fill('#EEF2FD').stroke(CO2_INK).strokeWidth(1.4)
         Text(`${paper.gasScope} 口径`).fontSize(10).fontColor(CO2_INK)
         Text(`${paper.action} ${paper.quantity} ${paper.inputUnit}`).fontSize(11).fontColor(CO2_INK)
         Text(`→ ${paper.resultKg.toFixed(2)} ${paper.resultUnit}`).fontSize(12).fontWeight(FontWeight.Medium).fontColor(CO2_INK)
       }
       .alignItems(HorizontalAlign.Center)
       Column({ space: 6 }) {
-        Circle({ width: 60, height: 60 }).fill('#E8D9D3').stroke(WARN_RED).strokeWidth(1.4)
+        Circle({ width: 60, height: 60 }).fill('#FDEFEA').stroke(WARN_RED).strokeWidth(1.4)
         Text(`${apple.gasScope} 口径`).fontSize(10).fontColor(CO2_INK)
         Text(`${apple.action} ${apple.quantity} ${apple.inputUnit}`).fontSize(11).fontColor(CO2_INK)
         Text(`→ ${apple.resultKg.toFixed(2)} ${apple.resultUnit}`).fontSize(12).fontWeight(FontWeight.Medium).fontColor(CO2_INK)
@@ -112,7 +112,7 @@ export function FigureBaseline(gasoline: FigureExample, note: string) {
   Column({ space: 8 }) {
     CardTitle('图 · 没有对照，就没有减排量')
     Row({ space: 12 }) {
-      Rect({ width: 52, height: 34 }).radius(8).fill('#ECD9CE').stroke(AMBER_DEEP).strokeWidth(1.4)
+      Rect({ width: 52, height: 34 }).radius(8).fill('#FDF5E4').stroke(AMBER_DEEP).strokeWidth(1.4)
       Column({ space: 3 }) {
         Text('基准情景 · 替代前的燃油出行').fontSize(11).fontWeight(FontWeight.Medium).fontColor(CO2_INK)
         Text(`${gasoline.quantity} ${gasoline.inputUnit} 汽油 ≈ ${gasoline.resultKg.toFixed(2)} ${gasoline.resultUnit}`).fontSize(11).lineHeight(17).fontColor(AMBER_DEEP).width('100%')
@@ -128,7 +128,7 @@ export function FigureBaseline(gasoline: FigureExample, note: string) {
     }.width('100%').alignItems(VerticalAlign.Center)
     Text('=').fontSize(20).fontColor(CO2_INK).width('100%').textAlign(TextAlign.Center)
     Row({ space: 12 }) {
-      Rect({ width: 52, height: 34 }).radius(8).fill('#F4EFE2').stroke(CO2_INK).strokeWidth(1.8).strokeDashArray([6, 4])
+      Rect({ width: 52, height: 34 }).radius(8).fill('#F6F6F4').stroke(CO2_INK).strokeWidth(1.8).strokeDashArray([6, 4])
       Column({ space: 3 }) {
         Text('减排量 · 两者之差').fontSize(11).fontWeight(FontWeight.Medium).fontColor(CO2_INK)
         Text('先核对情景，再记入存折').fontSize(10).lineHeight(16).fontColor(Theme.muted).width('100%')
@@ -153,7 +153,7 @@ export function FigureBubble() {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
       Column({ space: 4 }) {
-        Rect({ width: 86, height: 54 }).radius(10).fill('#EFEAE2').stroke(Theme.muted).strokeWidth(1.2).strokeDashArray([5, 4])
+        Rect({ width: 86, height: 54 }).radius(10).fill('#F6F6F4').stroke(Theme.muted).strokeWidth(1.2).strokeDashArray([5, 4])
         Text('碳市场（需核证）✕').fontSize(10).fontColor(Theme.muted).textAlign(TextAlign.Center)
       }
       .alignItems(HorizontalAlign.Center)
@@ -207,7 +207,7 @@ export function FigurePartial() {
   Column({ space: 8 }) {
     CardTitle('图 · 存折 ≠ 我的所有排放')
     Stack({ alignContent: Alignment.Center }) {
-      Ellipse({ width: 244, height: 104 }).fill('#EFEAE2').stroke(Theme.muted).strokeWidth(1.6).strokeDashArray([7, 5])
+      Ellipse({ width: 244, height: 104 }).fill('#F6F6F4').stroke(Theme.muted).strokeWidth(1.6).strokeDashArray([7, 5])
       Ellipse({ width: 140, height: 62 }).fill(Theme.sage).stroke(Theme.green).strokeWidth(1.8)
       Text('已记录、有依据的场景').fontSize(10).fontColor(Theme.green)
     }
@@ -227,7 +227,7 @@ export function FigureCommute(gasoline: FigureExample) {
     Row({ space: 8 }) {
       Column({ space: 4 }) {
         Text('驾车 / 燃油出行').fontSize(12).fontColor(CO2_INK).fontWeight(FontWeight.Medium)
-        TagText('基准情景', '#ECD9CE', AMBER_DEEP)
+        TagText('基准情景', '#FDF5E4', AMBER_DEEP)
         Text(`${gasoline.quantity} ${gasoline.inputUnit} 汽油 ≈ ${gasoline.resultKg.toFixed(2)} ${gasoline.resultUnit}`).fontSize(10).lineHeight(16).fontColor(AMBER_DEEP).width('100%').textAlign(TextAlign.Center)
       }
       .alignItems(HorizontalAlign.Center).layoutWeight(1)
@@ -260,13 +260,13 @@ export function FigureRecycle(paper: FigureExample) {
     Row({ space: 10 }) {
       Column({ space: 4 }) {
         Text('分类投放').fontSize(12).fontColor(CO2_INK).fontWeight(FontWeight.Medium)
-        TagText('参与行为（不计 kg）', '#EFE3DA', AMBER_DEEP)
+        TagText('参与行为（不计 kg）', '#FDF5E4', AMBER_DEEP)
       }
       .alignItems(HorizontalAlign.Center).layoutWeight(1)
       Text('→').fontSize(18).fontColor(CO2_INK)
       Column({ space: 4 }) {
         Text('实际再生利用').fontSize(12).fontColor(CO2_INK).fontWeight(FontWeight.Medium)
-        TagText(`废纸 1 kg 再生 → ${paper.resultKg.toFixed(2)} ${paper.resultUnit}`, '#F4EFE2', CO2_INK)
+        TagText(`废纸 1 kg 再生 → ${paper.resultKg.toFixed(2)} ${paper.resultUnit}`, '#F6F6F4', CO2_INK)
       }
       .alignItems(HorizontalAlign.Center).layoutWeight(1)
     }
@@ -287,9 +287,9 @@ export function FigurePlate(apple: FigureExample) {
       Column({ space: 4 }) {
         Text('少打一份（首选）').fontSize(12).fontColor(CO2_INK).fontWeight(FontWeight.Medium)
         Row({ space: 6 }) {
-          Rect({ width: 44, height: 40 }).radius(6).fill('#F3E6DE').stroke(PLUM_DEEP).strokeWidth(1)
+          Rect({ width: 44, height: 40 }).radius(6).fill('#E8F6F1').stroke(PLUM_DEEP).strokeWidth(1)
           Text('→').fontSize(14)
-          Rect({ width: 26, height: 24 }).radius(5).fill('#F3E6DE').stroke(PLUM_DEEP).strokeWidth(1)
+          Rect({ width: 26, height: 24 }).radius(5).fill('#E8F6F1').stroke(PLUM_DEEP).strokeWidth(1)
         }
         .alignItems(VerticalAlign.Center)
         Text('份量从大变小：源头浪费随之减少').fontSize(10).lineHeight(16).fontColor(Theme.muted).width('100%').textAlign(TextAlign.Center)
@@ -297,7 +297,7 @@ export function FigurePlate(apple: FigureExample) {
       .alignItems(HorizontalAlign.Center).layoutWeight(1)
       Column({ space: 4 }) {
         Text('光盘（参与）').fontSize(12).fontColor(CO2_INK).fontWeight(FontWeight.Medium)
-        TagText('只记参与 · 不折算 kg', '#EFE3DA', AMBER_DEEP)
+        TagText('只记参与 · 不折算 kg', '#FDF5E4', AMBER_DEEP)
         Text(`可核算的参照场景：\n减少采购 ${apple.quantity} ${apple.inputUnit} 苹果 → ${apple.resultKg.toFixed(1)} ${apple.resultUnit}`).fontSize(10).lineHeight(15).fontColor(CO2_INK).width('100%').textAlign(TextAlign.Center)
       }
       .alignItems(HorizontalAlign.Center).layoutWeight(1)

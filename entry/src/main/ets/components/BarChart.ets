@@ -156,7 +156,7 @@ export struct BarChart {
     ctx.lineWidth = 1;
     for (const v of [top, 0, bottom]) {
       const y = yOf(v);
-      ctx.strokeStyle = v === 0 ? '#CBD5C6' : Theme.chartGrid;
+      ctx.strokeStyle = v === 0 ? '#D6D4CC' : Theme.chartGrid;
       ctx.beginPath();
       ctx.moveTo(padL, y);
       ctx.lineTo(padL + plotW, y);
@@ -175,9 +175,9 @@ export struct BarChart {
     // 选中列加一层极淡底，点击后像账本里圈的格子
     const selected = this.indexOfSelected();
     if (selected >= 0) {
-      ctx.fillStyle = '#F5F7F1';
+      ctx.fillStyle = '#F6F6F4';
       ctx.fillRect(padL + slot * selected, padT, slot, plotH);
-      ctx.strokeStyle = '#CBD5C6';
+      ctx.strokeStyle = '#D6D4CC';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(padL + slot * selected, padT);

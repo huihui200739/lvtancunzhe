@@ -1,21 +1,24 @@
-/** Calm botanical design tokens. All dimensions are vp. */
+/**
+ * 全局设计令牌（vp）。白底墨字，主操作用墨黑，类别用四色识别；
+ * 旧名称保留以免改动所有页面：green 现为主操作墨色，sage 为浅灰底，lime 为深色卡上的强调色。
+ */
 export class Theme {
-  static readonly bg: string = '#F6F6F0';
-  static readonly paper: string = '#FFFFFF';
-  static readonly ink: string = '#203B33';
-  static readonly green: string = '#244E40';
-  static readonly muted: string = '#68766B';
-  static readonly line: string = '#E6EAE0';
-  static readonly sage: string = '#EAF0E3';
-  static readonly lime: string = '#D8EBA6';
-  static readonly rust: string = '#A65F46';
-  static readonly cardRadius: number = 16;
-  static readonly panelRadius: number = 20;
+  static readonly bg: string = '#FFFFFF';
+  static readonly paper: string = '#F6F6F4';
+  static readonly ink: string = '#16181D';
+  static readonly green: string = '#16181D';
+  static readonly muted: string = '#7A7E86';
+  static readonly line: string = '#ECEBE6';
+  static readonly sage: string = '#F1F1EE';
+  static readonly lime: string = '#FFFFFF';
+  static readonly rust: string = '#C8442C';
+  static readonly cardRadius: number = 18;
+  static readonly panelRadius: number = 22;
   static readonly heroRadius: number = 24;
-  static readonly controlRadius: number = 10;
-  static readonly chartGrid: string = '#EEF1E9';
-  static readonly chartText: string = '#8A968B';
-  static readonly chartArea: string = '#29244E40';
+  static readonly controlRadius: number = 12;
+  static readonly chartGrid: string = '#EFEFEC';
+  static readonly chartText: string = '#9A9DA3';
+  static readonly chartArea: string = '#293B63E0';
 }
 
 /**

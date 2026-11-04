@@ -1,4 +1,5 @@
-import { Theme } from '../common/Theme';
+import { Theme, Passbook, categoryHue } from '../common/Theme';
+import { Seal } from '../components/Passbook';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, SubpageHeader } from '../components/DesignSystem';
 import { router, promptAction } from '@kit.ArkUI';
 import { LedgerDb } from '../services/LedgerDb';
@@ -256,26 +257,44 @@ struct VoucherPage {
       } else {
         Scroll() {
           Column() {
-            Column({ space: 14 }) {
-              Row() {
-                Text('可追溯凭证').fontSize(12).fontColor('#BFCEC1').layoutWeight(1)
-                AppIcon({ name: 'leaf', iconSize: 24 })
-              }.width('100%')
-              Text(`${categoryName(this.view.record.category)} · ${this.view.record.quantity} ${this.view.record.unit}`)
-                .fontSize(21).fontColor(Theme.paper).fontWeight(FontWeight.Medium).width('100%')
-              Text(this.view.record.status === RecordStatus.VOIDED ? '这笔记录已撤销' : (this.view.snapshot.isNetIncrease ? '相对基准增加排放' : '相对基准的估算减排'))
-                .fontSize(12).fontColor('#BFCEC1').width('100%').margin({ top: 10 })
-              Row({ space: 8 }) {
-                Text(NumUtil.signed(this.view.snapshot.reductionKg, 2)).fontSize(44).fontColor(Theme.lime).fontWeight(FontWeight.Medium).fontFeature('"tnum" on')
-                Text(gasUnitLabel(this.view.snapshot.gasScope)).fontSize(12).fontColor('#BFCEC1').margin({ top: 20 })
-              }.width('100%')
-              Divider().color('#527365').margin({ top: 8, bottom: 8 })
-              Row() {
-                Text(this.view.record.occurredAt).fontSize(12).fontColor('#BFCEC1').layoutWeight(1)
-                Text(`积分 ${this.view.pointDelta > 0 ? '+' : ''}${this.view.pointDelta} · v${this.view.record.revision}`)
-                  .fontSize(12).fontColor('#BFCEC1')
-              }.width('100%')
-            }.width('100%').padding(24).backgroundColor(Theme.green).borderRadius(Theme.heroRadius)
+            Stack({ alignContent: Alignment.TopStart }) {
+              Image($r('app.media.note_cool')).width('100%').height('100%').objectFit(ImageFit.Cover)
+                .draggable(false).accessibilityLevel('no')
+              Column({ space: 6 }) {
+                Row() {
+                  Text('可追溯凭证').fontSize(11).letterSpacing(2).fontColor('#3A3F4A').layoutWeight(1)
+                  if (this.view.record.status === RecordStatus.VOIDED) {
+                    Seal({ label: '撤', sealSize: 34, angle: 8, color: Passbook.faint })
+                  } else if (this.view.sources.length > 0 && this.view.sources.every((src: VoucherFactorSource) => src.reviewStatus === 'verified')) {
+                    Seal({ label: '核', sealSize: 34, stampIn: true })
+                  }
+                }.width('100%').height(36)
+                Row({ space: 8 }) {
+                  Row().width(4).height(18).borderRadius(2).backgroundColor(categoryHue(this.view.record.category))
+                  Text(`${categoryName(this.view.record.category)} · ${this.view.record.quantity} ${this.view.record.unit}`)
+                    .fontSize(19).fontFamily(Passbook.serif).fontColor(Passbook.print)
+                }.width('100%')
+                Text(this.view.record.status === RecordStatus.VOIDED ? '这笔记录已撤销' : (this.view.snapshot.isNetIncrease ? '相对基准增加排放' : '相对基准的估算减排'))
+                  .fontSize(11).fontColor('#4A505C').width('100%').margin({ top: 8 })
+                Row({ space: 6 }) {
+                  Text(NumUtil.signed(this.view.snapshot.reductionKg, 2)).fontSize(56).fontFamily(Passbook.numeral)
+                    .fontColor(this.view.snapshot.isNetIncrease ? Theme.rust : Passbook.print)
+                    .decoration({ type: this.view.record.status === RecordStatus.VOIDED ? TextDecorationType.LineThrough : TextDecorationType.None, color: Passbook.faint })
+                    .maxLines(1).minFontSize(28).maxFontSize(56).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).flexShrink(1)
+                  Text(gasUnitLabel(this.view.snapshot.gasScope)).fontSize(13).fontFamily(Passbook.numeral).fontColor('#3A3F4A')
+                    .margin({ bottom: 12 }).flexShrink(0)
+                }.width('100%').alignItems(VerticalAlign.Bottom)
+                Blank()
+                Row() {
+                  Text(this.view.record.occurredAt).fontSize(12).fontFamily(Passbook.numeral).fontColor(Passbook.print).layoutWeight(1)
+                  Text(`积分 ${this.view.pointDelta > 0 ? '+' : ''}${this.view.pointDelta}  ·  第 ${this.view.record.revision} 版`)
+                    .fontSize(11).fontColor(Passbook.print)
+                }.width('100%').padding({ left: 14, right: 14, top: 10, bottom: 10 }).backgroundColor('#8CFFFFFF').borderRadius(12)
+              }.width('100%').height('100%').padding({ left: 20, right: 20, top: 16, bottom: 16 })
+            }
+            .width('100%').height(250).borderRadius(Theme.heroRadius).clip(true)
+            .border({ width: 0.5, color: '#1F16181D' })
+            .shadow({ radius: 24, color: '#163B4A78', offsetY: 10 })
             SectionHeading({ title: '对照情景与排放' })
             Column({ space: 14 }) {
               ForEach(this.view.scenarios, (s: ScenarioResult) => {
@@ -372,7 +391,7 @@ struct VoucherPage {
               Row({ space: 12 }) {
                 Button(this.revising ? '取消修订' : '修订记录').height(48).fontSize(13).layoutWeight(1).fontColor(Theme.green).backgroundColor(Theme.sage)
                   .onClick(() => { this.revising = !this.revising; })
-                Button('撤销记录').enabled(!this.updating).height(48).fontSize(13).layoutWeight(1).fontColor(Theme.rust).backgroundColor('#FAEEE5').onClick(() => this.doVoid())
+                Button('撤销记录').enabled(!this.updating).height(48).fontSize(13).layoutWeight(1).fontColor(Theme.rust).backgroundColor('#FCEDE8').onClick(() => this.doVoid())
               }.width('100%').margin({ top: 24 })
             }
             if (this.message.length > 0) { Notice({ text: this.message, warning: true }).margin({ top: 14 }) }

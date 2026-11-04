@@ -1,4 +1,4 @@
-import { Theme } from '../common/Theme';
+import { Theme, Passbook, Hue } from '../common/Theme';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, SubpageHeader } from '../components/DesignSystem';
 import { LedgerDb } from '../services/LedgerDb';
 import { AppService } from '../services/AppService';
@@ -182,14 +182,24 @@ export struct KnowledgeTab {
     Scroll() {
       Column() {
         PageIntro({ title: '低碳知识，随时查阅', subtitle: '离线文章涵盖政策、知识与行动技巧。', eyebrow: '离线科普' })
-        Row() {
-          Column({ space: 12 }) {
-            Text('政策 · 知识 · 技巧').fontSize(12).fontColor(Theme.muted)
-            Text('好的改变，\n从理解开始。').fontSize(25).lineHeight(36).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
-            Text(`${this.articles.length} 篇离线读物 · 随时翻阅`).fontSize(11).fontColor(Theme.muted)
-          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-          Image($r('app.media.botanical')).width(this.getUIContext().fp2px(1) > this.getUIContext().vp2px(1) * 1.2 ? 56 : 100).height(172).objectFit(ImageFit.Contain).accessibilityLevel('no')
-        }.width('100%').padding(20).backgroundColor('#E7EDD9').borderRadius(Theme.panelRadius)
+        Stack({ alignContent: Alignment.TopStart }) {
+          Image($r('app.media.note_cool')).width('100%').height('100%').objectFit(ImageFit.Cover)
+            .draggable(false).accessibilityLevel('no')
+          Column({ space: 10 }) {
+            Text('POLICY · KNOWLEDGE · TIPS').fontSize(10).letterSpacing(1.5).fontColor('#3A3F4A')
+            Text('好的改变，\n从理解开始。').fontSize(26).lineHeight(38).fontFamily(Passbook.serif).fontColor(Passbook.print)
+            Blank()
+            Row({ space: 8 }) {
+              Circle().width(8).height(8).fill(Hue.travel)
+              Circle().width(8).height(8).fill(Hue.energy)
+              Circle().width(8).height(8).fill(Hue.recycle)
+              Circle().width(8).height(8).fill(Hue.food)
+              Text(`${this.articles.length} 篇离线读物 · 断网也能看`).fontSize(11).fontColor(Passbook.print).margin({ left: 4 })
+            }
+          }.width('100%').height('100%').alignItems(HorizontalAlign.Start).padding({ left: 20, right: 20, top: 18, bottom: 18 })
+        }
+        .width('100%').height(196).borderRadius(Theme.panelRadius).clip(true)
+        .border({ width: 0.5, color: '#1F16181D' })
         Row({ space: 8 }) {
           ForEach(this.cats, (c: CatOption) => {
             Text(c.label).fontSize(13).fontColor(this.filterKey === c.key ? Theme.paper : Theme.muted)

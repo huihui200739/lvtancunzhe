@@ -1,4 +1,4 @@
-import { Theme } from '../common/Theme';
+import { Theme, categoryHue } from '../common/Theme';
 import { CategoryStat } from '../models/StatsModels';
 
 /**
@@ -17,8 +17,7 @@ export struct PieChart {
   private canvasW: number = 0;
   private canvasH: number = 0;
 
-  // 多类别时按“深绿 → 沙色 → 浅绿”分配，相邻段对比更清楚
-  private static readonly COLORS: string[] = ['#1F4436', '#4C7560', '#8CA98F', '#C2B08C', '#D5DEC4'];
+  // 每类固定用全应用一致的识别色：出行蓝、节电琥珀、回收绿、食物珊瑚
 
   private positiveCategoryCount(): number {
     let count = 0;
@@ -68,7 +67,7 @@ export struct PieChart {
       Column() {
         ForEach(this.data.filter((c: CategoryStat) => c.positiveKg > 0), (c: CategoryStat, index: number) => {
           Row() {
-            Circle().width(6).height(6).fill(PieChart.COLORS[this.data.indexOf(c) % PieChart.COLORS.length])
+            Circle().width(8).height(8).fill(categoryHue(`${c.category}`))
             Text(c.label).fontSize(12).fontWeight(this.isSelected(c) ? FontWeight.Medium : FontWeight.Regular)
               .fontColor(this.selectedCategory.length === 0 || this.isSelected(c) ? Theme.ink : Theme.muted)
               .layoutWeight(1).margin({ left: 8 }).maxLines(1)
@@ -180,7 +179,7 @@ export struct PieChart {
       ctx.globalAlpha = hasSelection && !selected ? 0.28 : 1;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, start + gap / 2, start + angle - gap / 2);
-      ctx.strokeStyle = PieChart.COLORS[i % PieChart.COLORS.length];
+      ctx.strokeStyle = categoryHue(`${this.data[i].category}`);
       ctx.lineWidth = selected ? ring + 4 : ring;
       ctx.lineCap = 'butt';
       ctx.stroke();

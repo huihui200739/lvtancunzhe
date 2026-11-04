@@ -1,4 +1,5 @@
-import { Theme } from '../common/Theme';
+import { Theme, Passbook } from '../common/Theme';
+import { Seal } from '../components/Passbook';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, SubpageHeader } from '../components/DesignSystem';
 import { router, promptAction } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
@@ -60,20 +61,31 @@ struct CertificatePage {
       } else {
         Scroll() {
           Column({ space: 22 }) {
-            Column({ space: 18 }) {
-              Text('虚拟成就').fontSize(12).fontColor(Theme.muted)
-              Image($r('app.media.botanical')).width(140).height(210).objectFit(ImageFit.Contain).accessibilityLevel('no')
-              Text('你的小小坚持\n正在长成一片绿').fontSize(26).lineHeight(38).fontWeight(FontWeight.Medium).fontColor(Theme.ink).textAlign(TextAlign.Center)
-              Text(this.cert.rewardName).fontSize(15).fontColor(Theme.green).margin({ top: 4 })
-              Text('应用内虚拟成就证书').fontSize(11).fontColor(Theme.muted)
-              Divider().color(Theme.line).margin({ top: 10, bottom: 8 })
-              Text(this.cert.serial).fontSize(11).fontColor(Theme.muted).textAlign(TextAlign.Center)
-              Text(this.cert.issuedAt).fontSize(11).fontColor(Theme.muted)
-            }.width('100%').padding({ left: 24, right: 24, top: 32, bottom: 24 }).backgroundColor(Theme.paper).borderRadius(Theme.panelRadius)
-              .border({ width: 1, color: Theme.line })
+            Stack({ alignContent: Alignment.Center }) {
+              Image($r('app.media.note_warm')).width('100%').height('100%').objectFit(ImageFit.Cover)
+                .draggable(false).accessibilityLevel('no')
+              Column({ space: 10 }) {
+                Text('VIRTUAL CERTIFICATE · 应用内虚拟成就').fontSize(10).letterSpacing(1.5).fontColor('#4A3F3A')
+                Text(this.cert.rewardName).fontSize(28).fontFamily(Passbook.serif).fontColor(Passbook.print)
+                  .textAlign(TextAlign.Center).margin({ top: 14 })
+                Text('你的小小坚持，记在这本存折里').fontSize(13).fontColor('#4A3F3A').textAlign(TextAlign.Center)
+                Blank()
+                Row() {
+                  Column({ space: 3 }) {
+                    Text('证书编号').fontSize(10).fontColor('#6A5F5A')
+                    Text(this.cert.serial).fontSize(12).fontFamily(Passbook.numeral).fontColor(Passbook.print)
+                  }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+                  Seal({ label: '证', sealSize: 46, angle: -10 })
+                }.width('100%')
+                Text(this.cert.issuedAt).fontSize(11).fontFamily(Passbook.numeral).fontColor('#4A3F3A').width('100%')
+              }.width('100%').height('100%').padding({ left: 24, right: 24, top: 28, bottom: 22 })
+            }
+            .width('100%').height(320).borderRadius(Theme.panelRadius).clip(true)
+            .border({ width: 0.5, color: '#1F16181D' })
+            .shadow({ radius: 24, color: '#16A0603A', offsetY: 10 })
             Column({ space: 12 }) {
               Text('此刻，存折里的绿色足迹').fontSize(16).fontColor(Theme.ink).width('100%')
-              Text(this.cert.reductionSummary).fontSize(22).fontWeight(FontWeight.Medium).fontColor(Theme.green).width('100%')
+              Text(this.cert.reductionSummary).fontSize(24).fontFamily(Passbook.numeral).fontColor(Theme.ink).width('100%')
               Text(`${this.cert.recordCount} 条有效记录 · 不同气体口径分别列示`).fontSize(11).fontColor(Theme.muted).width('100%')
             }.width('100%').padding(20).backgroundColor(Theme.sage).borderRadius(Theme.cardRadius)
             Text(this.cert.disclaimer).fontSize(12).lineHeight(21).fontColor(Theme.muted).width('100%')

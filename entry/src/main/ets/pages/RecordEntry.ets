@@ -1,5 +1,5 @@
 import { PlanLinkPolicy } from '../services/PlanLinkPolicy';
-import { Theme } from '../common/Theme';
+import { Theme, categoryHue } from '../common/Theme';
 import { QuantityField } from '../components/QuantityField';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, SubpageHeader } from '../components/DesignSystem';
 import { router } from '@kit.ArkUI';
@@ -44,12 +44,13 @@ struct FactorChips {
             .fontColor(this.selected === c.code ? '#FFFFFF' : Theme.ink)
           Text(c.detail)
             .fontSize(11)
-            .fontColor(this.selected === c.code ? '#C8D9C6' : Theme.muted)
+            .fontColor(this.selected === c.code ? '#B9BCC2' : Theme.muted)
             .margin({ top: 2 })
         }
         .padding(14)
         .margin({ right: 8, bottom: 8 })
         .backgroundColor(this.selected === c.code ? Theme.green : '#FFFFFF')
+        .border({ width: 1, color: this.selected === c.code ? Theme.green : '#D6D4CC' })
         .borderRadius(16)
         .onClick(() => {
           this.selected = c.code;
@@ -207,7 +208,7 @@ struct RecordEntry {
   private chipsFor(list: CarbonFactor[]): FactorChip[] {
     const out: FactorChip[] = [];
     for (const f of list) {
-      out.push({ code: f.code, label: this.labelOf(f), detail: `${f.value} ${factorUnitText(f)}` });
+      out.push({ code: f.code, label: this.labelOf(f), detail: `${Number(f.value.toPrecision(6))} ${factorUnitText(f)}` });
     }
     return out;
   }
@@ -387,9 +388,9 @@ struct RecordEntry {
           Column() {
           Flex({ wrap: FlexWrap.Wrap }) {
             ForEach(this.cats, (c: CatChip) => {
-              Text(c.label).fontSize(12).fontColor(`${this.category}` === c.key ? Theme.paper : Theme.muted)
+              Text(c.label).fontSize(12).fontColor(`${this.category}` === c.key ? '#FFFFFF' : Theme.muted)
                 .padding({ left: 16, right: 16, top: 13, bottom: 13 }).borderRadius(18)
-                .backgroundColor(`${this.category}` === c.key ? Theme.green : Theme.paper).margin({ right: 8, bottom: 10 })
+                .backgroundColor(`${this.category}` === c.key ? categoryHue(c.key) : Theme.paper).margin({ right: 8, bottom: 10 })
                 .enabled(this.savedRecordId.length === 0).onClick(() => { this.category = c.key as BehaviorCategory; this.resetFactors(); })
             }, (c: CatChip) => c.key)
           }.width('100%')

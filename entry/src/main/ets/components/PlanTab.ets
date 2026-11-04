@@ -575,7 +575,7 @@ export struct PlanTab {
           .width('100%')
           .margin({ top: 4 })
         if (t.participationOnly && t.linkedRecordId.length === 0) {
-          Button('撤销这次参与').fontSize(12).fontColor(Theme.rust).backgroundColor('#FAEEE5').height(42).margin({ top: 12 })
+          Button('撤销这次参与').fontSize(12).fontColor(Theme.rust).backgroundColor('#FCEDE8').height(42).margin({ top: 12 })
             .onClick(() => this.cancelParticipation(t.planTaskId))
         }
       } else if (t.status === PlanTaskStatus.PLANNED || t.status === PlanTaskStatus.IN_PROGRESS) {
@@ -595,7 +595,9 @@ export struct PlanTab {
           Button('这项做不到')
             .fontSize(12)
             .height(42)
-            .backgroundColor('#829478')
+            .fontColor(Theme.ink)
+            .backgroundColor('#FFFFFF')
+            .border({ width: 1, color: '#D6D4CC' })
             .layoutWeight(1)
             .margin({ left: 8 })
             .onClick(() => {

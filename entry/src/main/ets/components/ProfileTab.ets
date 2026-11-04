@@ -1,6 +1,6 @@
 import { Result } from '../common/AppError';
 import { LedgerOperations } from '../services/LedgerOperations';
-import { Theme } from '../common/Theme';
+import { Theme, Passbook } from '../common/Theme';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, SubpageHeader } from '../components/DesignSystem';
 import { router, promptAction } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
@@ -312,27 +312,34 @@ export struct ProfileTab {
     Scroll() {
       Column() {
         PageIntro({ title: '积分与奖励', subtitle: '查看徽章、虚拟奖励和账本数据。', eyebrow: '个人账本' })
-        Row() {
-          Column({ space: 10 }) {
-            Text('积分用于应用内奖励').fontSize(13).fontColor('#BFCEC1')
-            Row({ space: 8 }) {
-              Text(`${this.balance}`).fontSize(44).fontWeight(FontWeight.Medium).fontColor(Theme.lime).fontFeature('"tnum" on')
-                .maxLines(1).minFontSize(20).maxFontSize(44).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).flexShrink(1).constraintSize({ maxWidth: '60%' })
-              Text('可用积分').fontSize(12).fontColor('#BFCEC1').margin({ top: 18 }).flexShrink(0)
-            }.width('100%')
-            Text('积分用于应用内虚拟奖励，无现金价值').fontSize(11).fontColor('#BFCEC1')
-          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
-          AppIcon({ name: 'badge', iconSize: 52, color: Theme.lime })
-        }.width('100%').padding(20).backgroundColor(Theme.green).borderRadius(Theme.panelRadius)
+        Stack({ alignContent: Alignment.TopStart }) {
+          Image($r('app.media.note_warm')).width('100%').height('100%').objectFit(ImageFit.Cover)
+            .draggable(false).accessibilityLevel('no')
+          Column({ space: 6 }) {
+            Text('可用积分').fontSize(11).letterSpacing(2).fontColor('#4A3F3A')
+            Row({ space: 6 }) {
+              Text(`${this.balance}`).fontSize(60).fontFamily(Passbook.numeral).fontColor(Passbook.print)
+                .maxLines(1).minFontSize(28).maxFontSize(60).heightAdaptivePolicy(TextHeightAdaptivePolicy.MIN_FONT_SIZE_FIRST).flexShrink(1)
+              Text('分').fontSize(14).fontColor('#4A3F3A').margin({ bottom: 12 }).flexShrink(0)
+            }.width('100%').alignItems(VerticalAlign.Bottom)
+            Blank()
+            Text('积分只用于应用内虚拟奖励，没有现金价值，也不是碳资产。').fontSize(11).lineHeight(17).fontColor(Passbook.print)
+              .width('100%').padding({ left: 14, right: 14, top: 10, bottom: 10 }).backgroundColor('#8CFFFFFF').borderRadius(12)
+          }.width('100%').height('100%').alignItems(HorizontalAlign.Start).padding({ left: 20, right: 20, top: 18, bottom: 16 })
+        }
+        .width('100%').height(196).borderRadius(Theme.heroRadius).clip(true)
+        .border({ width: 0.5, color: '#1F16181D' })
+        .shadow({ radius: 24, color: '#16A0603A', offsetY: 10 })
+        .accessibilityGroup(true).accessibilityText(`可用积分 ${this.balance} 分，仅用于应用内虚拟奖励`)
         if (this.message.length > 0) { Notice({ text: this.message, warning: true }).margin({ top: 16 }) }
         if (this.status.length > 0) { Notice({ text: this.status }).margin({ top: 16 }) }
         SectionHeading({ title: '慢慢点亮的成就', detail: '我的徽章' })
         Column() {
           ForEach(this.badges, (b: BadgeRow) => {
             Row({ space: 12 }) {
-              AppIcon({ name: 'badge', iconSize: 20, color: b.unlocked ? Theme.green : '#B2BDAA' })
+              AppIcon({ name: 'badge', iconSize: 20, color: b.unlocked ? Theme.green : Theme.muted })
               Text(b.def.name).fontSize(14).fontColor(b.unlocked ? Theme.ink : Theme.muted).layoutWeight(1)
-              Text(b.unlocked ? '已点亮' : '等待生长').fontSize(11).fontColor(b.unlocked ? Theme.green : Theme.muted)
+              Text(b.unlocked ? '已点亮' : '未点亮').fontSize(11).fontColor(b.unlocked ? Theme.rust : Theme.muted)
             }.width('100%').padding({ top: 14, bottom: 14 })
             Divider().color(Theme.line)
           }, (b: BadgeRow) => `${b.def.badgeId}-${b.unlocked}`)
@@ -396,7 +403,7 @@ export struct ProfileTab {
           Column({ space: 12 }) {
             Row({ space: 10 }) {
               Button('导出备份').layoutWeight(1).height(46).fontSize(12).backgroundColor(Theme.green).enabled(!this.dataBusy).onClick(() => this.runDataAction(() => this.exportBackup()))
-              Button('恢复备份').layoutWeight(1).height(46).fontSize(12).fontColor(Theme.rust).backgroundColor('#FAEEE5').enabled(!this.dataBusy).onClick(() => this.runDataAction(() => this.restoreBackup()))
+              Button('恢复备份').layoutWeight(1).height(46).fontSize(12).fontColor(Theme.rust).backgroundColor('#FCEDE8').enabled(!this.dataBusy).onClick(() => this.runDataAction(() => this.restoreBackup()))
             }.width('100%')
             Row({ space: 8 }) {
               Button('明细 CSV').layoutWeight(1).height(44).fontSize(11).fontColor(Theme.green).backgroundColor(Theme.sage).enabled(!this.dataBusy).onClick(() => this.runDataAction(() => this.exportCsv('detail')))
