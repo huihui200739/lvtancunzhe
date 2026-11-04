@@ -1,0 +1,12 @@
+演示样张来源（Wikimedia Commons，仅缩放到 640px 以内，未修改画面内容）
+
+bike.jpg       File:Left side of Flying Pigeon.jpg — 齐健 from Peking, People's Republic of China — CC BY 2.0
+               https://commons.wikimedia.org/wiki/File:Left_side_of_Flying_Pigeon.jpg
+apples.jpg     File:Apples in basket 2018 G1.jpg — George Chernilevsky — Public domain
+               https://commons.wikimedia.org/wiki/File:Apples_in_basket_2018_G1.jpg
+newspaper.jpg  File:A stack of newspapers (cropped).jpg — Daniel R. Blume from Orange County, California, USA — CC BY-SA 2.0
+               https://commons.wikimedia.org/wiki/File:A_stack_of_newspapers_(cropped).jpg
+meal.jpg       File:Parboiled rice with chicken, peppers, cucurbita, peas and tomato.jpg — Petar Milošević — CC BY-SA 4.0
+               https://commons.wikimedia.org/wiki/File:Parboiled_rice_with_chicken,_peppers,_cucurbita,_peas_and_tomato.jpg
+
+这些样张只用于在没有真实摄像头画面的模拟器上演示端侧识别，不代表任何真实记录。

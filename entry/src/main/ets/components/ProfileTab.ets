@@ -372,9 +372,21 @@ export struct ProfileTab {
         SectionHeading({ title: '一周行动回顾', detail: '本地汇总' })
         Text('只包含统计周期、分类汇总与估算边界；不包含记录编号、备注或个人身份。').fontSize(11).lineHeight(19)
           .fontColor(Theme.muted).width('100%').margin({ bottom: 10 })
-        Button(this.dataBusy ? '正在生成…' : '查看并保存七日周报').height(46).fontSize(13).width('100%')
-          .fontColor(Theme.green).backgroundColor(Theme.sage).enabled(!this.dataBusy)
-          .onClick(() => this.shareWeeklyReport())
+        Row({ space: 10 }) {
+          Button('生成分享卡').layoutWeight(1).height(46).fontSize(13).fontColor('#FFFFFF').backgroundColor(Theme.green)
+            .onClick(() => router.pushUrl({ url: 'pages/ShareCardPage' }))
+          Button(this.dataBusy ? '正在生成…' : '保存文字周报').layoutWeight(1).height(46).fontSize(13)
+            .fontColor(Theme.green).backgroundColor(Theme.sage).enabled(!this.dataBusy)
+            .onClick(() => this.shareWeeklyReport())
+        }.width('100%')
+        Row() {
+          Column({ space: 4 }) {
+            Text('碳普惠平台（模拟）').fontSize(14).fontColor(Theme.ink).width('100%')
+            Text('查看转存的凭证、模拟积分与模拟权益兑换').fontSize(11).fontColor(Theme.muted).width('100%')
+          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+          AppIcon({ name: 'arrow', iconSize: 18 })
+        }.width('100%').padding(20).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
+          .onClick(() => router.pushUrl({ url: 'pages/BenefitPage' }))
         Row() {
           Column({ space: 4 }) {
             Text('AI 行动教练').fontSize(14).fontColor(Theme.ink).width('100%')
@@ -386,8 +398,8 @@ export struct ProfileTab {
         SectionHeading({ title: '按自己的节奏' })
         Row() {
           Column({ space: 6 }) {
-            Text('轻柔呼吸动效').fontSize(14).fontColor(Theme.ink)
-            Text('首页植物缓慢舒展，可随时关闭').fontSize(11).fontColor(Theme.muted)
+            Text('柔和动效').fontSize(14).fontColor(Theme.ink)
+            Text('记账落章等轻微动效，可随时关闭').fontSize(11).fontColor(Theme.muted)
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
           Toggle({ type: ToggleType.Switch, isOn: this.gentleMotion }).selectedColor(Theme.green)
             .onChange((v: boolean) => { this.gentleMotion = v; })

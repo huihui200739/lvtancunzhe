@@ -12,7 +12,7 @@ import { ScenarioResult } from '../models/CalcModels';
 import { PlanConstraints, PlanOutcome } from '../models/PlanModels';
 import { PointAccountView } from '../models/PointModels';
 import { BehaviorCategory, categoryName, gasUnitLabel, RecordStatus, ScenarioRole } from '../common/Domain';
-import { Theme, Passbook, categoryIcon, categoryHue, categoryTint } from '../common/Theme';
+import { Theme, Passbook, Hue, categoryIcon, categoryHue, categoryTint } from '../common/Theme';
 import { AppIcon, Notice } from './DesignSystem';
 import { Seal, DoubleRule, HeroStat } from './Passbook';
 import { DateUtil, NumUtil } from '../common/Format';
@@ -352,6 +352,7 @@ export struct LedgerTab {
         this.heroNote()
         this.todaySlip()
         this.sectionTitle('存入单', '只记真实发生的')
+        this.photoSlip()
         Row({ space: 10 }) {
           this.slip(SLIPS[0])
           this.slip(SLIPS[1])
@@ -501,6 +502,33 @@ export struct LedgerTab {
       Text(title).fontSize(19).fontFamily(Passbook.serif).fontColor(Passbook.print).layoutWeight(1)
       Text(detail).fontSize(11).fontColor(Passbook.faint)
     }.width('100%').alignItems(VerticalAlign.Bottom).margin({ top: 28, bottom: 12 })
+  }
+
+  /** 拍照记一笔入口：端侧识别只建议填哪张存入单，不自动入账 */
+  @Builder
+  photoSlip() {
+    Row({ space: 14 }) {
+      Stack() {
+        Circle().width(44).height(44).fill(Passbook.print)
+        Row({ space: 3 }) {
+          Circle().width(5).height(5).fill(Hue.travel)
+          Circle().width(5).height(5).fill(Hue.energy)
+          Circle().width(5).height(5).fill(Hue.recycle)
+          Circle().width(5).height(5).fill(Hue.food)
+        }
+      }
+      Column({ space: 3 }) {
+        Text('拍照记一笔').fontSize(16).fontFamily(Passbook.serif).fontColor(Passbook.print)
+        Text('端侧 AI 认出画面，建议填哪张存入单 · 照片不上传').fontSize(11).fontColor(Passbook.faint).maxLines(1)
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+      Stack() {
+        AppIcon({ name: 'arrow', iconSize: 16, color: Passbook.print })
+      }.width(32).height(32).borderRadius(16).backgroundColor(Passbook.wash)
+    }
+    .width('100%').padding(12).margin({ bottom: 10 })
+    .backgroundColor(Passbook.sheet).border({ width: 1, color: Passbook.rule }).borderRadius(20)
+    .accessibilityGroup(true).accessibilityText('拍照记一笔：端侧识别照片，建议填写哪张存入单')
+    .onClick(() => router.pushUrl({ url: 'pages/PhotoAssistPage' }))
   }
 
   /** 存入单：左侧票根色带 + 打孔线，颜色即类别 */

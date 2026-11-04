@@ -5,4 +5,4 @@ for (const name of ['core', 'hardening', 'plan-ui', 'concurrency', 'full-audit',
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status || 1);
 }
-console.log('PASS 59 baseline + 16 feature checks (75 total; isolated fixtures; no native UI acceptance implied)');
+console.log('PASS 59 baseline + 19 feature checks (78 total; isolated fixtures; no native UI acceptance implied)');

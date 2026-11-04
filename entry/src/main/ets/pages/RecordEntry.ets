@@ -88,6 +88,8 @@ struct RecordEntry {
   private planTaskId: string = '';
   @State planContext: string = '';
   @State planReady: boolean = true;
+  @State imageAssisted: boolean = false;
+  @State imageHint: string = '';
 
   private cats: CatChip[] = [
     { key: 'travel', label: '出行' },
@@ -104,6 +106,10 @@ struct RecordEntry {
       }
       if (params.planTaskId !== undefined && `${params.planTaskId}`.length > 0) {
         this.planTaskId = `${params.planTaskId}`;
+      }
+      if (params.imageAssisted === true) {
+        this.imageAssisted = true;
+        this.imageHint = params.imageHint !== undefined ? `${params.imageHint}` : '';
       }
     }
     this.resetFactors();
@@ -332,7 +338,7 @@ struct RecordEntry {
       baselineType: this.baselineType(),
       scenarios: scenarios,
       occurredAt: this.dateText,
-      entrySource: EntrySource.USER_INPUT,
+      entrySource: this.imageAssisted ? EntrySource.IMAGE_ASSISTED : EntrySource.USER_INPUT,
       remark: this.remark,
       passengers: this.passengers(),
       applicabilityAccepted: this.applicabilityAccepted
@@ -385,6 +391,7 @@ struct RecordEntry {
         Column() {
           PageIntro({ title: '记录真实发生的行动', subtitle: '选择行动与适用情景，核对数量后查看估算结果。', eyebrow: '新增记录' })
           if (this.planContext.length > 0) { Notice({ text: this.planContext }).margin({ bottom: 16 }) }
+          if (this.imageAssisted) { Notice({ text: `图片辅助填写 · ${this.imageHint}` }).margin({ bottom: 16 }) }
           Column() {
           Flex({ wrap: FlexWrap.Wrap }) {
             ForEach(this.cats, (c: CatChip) => {

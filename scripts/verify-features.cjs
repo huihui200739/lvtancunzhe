@@ -7,6 +7,9 @@ const {AiCoachService}=load('services/AiCoachService');
 const {AiConfigStore}=load('services/AiConfigStore');
 const {maskKey}=load('models/AiModels');
 const {AiNoteStore}=load('services/AiNoteStore');
+const {PhotoAssist}=load('services/PhotoAssist');
+const {MockBenefitPlatform}=load('services/MockBenefitPlatform');
+const {TaskReminderService}=load('services/TaskReminderService');
 let checks=0;async function check(name,fn){await fn();checks++;console.log('PASS '+name);}
 const task=(id,day,status,extra={})=>({planTaskId:id,planId:'p',templateId:'P01',name:id,category:D.BehaviorCategory.TRAVEL,day,status,expectedKg:0.42,quantity:1,unit:'km',extraMinutes:10,extraCost:0,reason:'与已保存计划一致',participationOnly:false,linkedRecordId:'',actualKg:0,rewarded:false,...extra});
 const voucher=(over={})=>({
@@ -130,6 +133,36 @@ const voucher=(over={})=>({
   assert.equal(AiConfigStore.effectiveEndpoint('https://api.example.com/v1/chat/completions'),'https://api.example.com/v1/chat/completions');
   const v=AiConfigStore.validate({endpoint:'https://www.sub-coco.org',model:'deepseek-chat',apiKey:'sk-x',enabled:false});
   assert.equal(v.ok,true,v.message);
+ });
+ await check('拍照识别按示例阈值归一化，只给存入单建议且不推断驾车为减排',()=>{
+  assert.deepEqual(PhotoAssist.normalize([.2,.6,NaN,1.5],[.4,.4,.4,.4]).map(v=>+v.toFixed(4)),[.25,.6667,0,1]);
+  const labels=['Bicycle','Car','Newspaper','Person'];
+  const bike=PhotoAssist.suggest([.9,.95,.1,.7],labels);
+  assert.deepEqual(bike.suggestions.map(s=>s.category),[D.BehaviorCategory.TRAVEL]);
+  assert.match(bike.suggestions[0].hint,/自己填写/);assert.equal('quantity' in bike.suggestions[0],false);
+  const car=PhotoAssist.suggest([.1,.99,.1,.8],labels);
+  assert.equal(car.suggestions.length,0);assert.match(car.message,/不会自动记账/);
+  assert.equal(PhotoAssist.suggest([.6,0,.8,0],labels).suggestions[0].category,D.BehaviorCategory.RECYCLING);
+ });
+ await check('模拟碳普惠平台转存按记录版本幂等，兑换按请求号只扣一次且余额不足拒绝',()=>{
+  const now='2026-11-04T10:00:00';
+  const t1=MockBenefitPlatform.applyTransfer(MockBenefitPlatform.empty(),voucher(),now);assert.equal(t1.ok,true);
+  assert.equal(MockBenefitPlatform.summary(t1.data).earned,5);
+  const t2=MockBenefitPlatform.applyTransfer(t1.data,voucher(),now);assert.equal(t2.data.transfers.length,1);
+  assert.equal(MockBenefitPlatform.applyTransfer(t1.data,voucher({isLatest:false}),now).ok,false);
+  assert.equal(MockBenefitPlatform.applyRedeem(t1.data,'MP02','r1',now).ok,false);
+  const rich={transfers:[{...t1.data.transfers[0],credits:45}],redemptions:[]};
+  const r1=MockBenefitPlatform.applyRedeem(rich,'MP02','r1',now);assert.equal(r1.ok,true);assert.match(r1.data.redemptions[0].code,/^DEMO-MP02-/);
+  const r2=MockBenefitPlatform.applyRedeem(r1.data,'MP02','r1',now);assert.equal(MockBenefitPlatform.summary(r2.data).balance,25);
+ });
+ await check('日历提醒只排未完成且未过时的任务，参与任务提示不计kg',()=>{
+  const now=new Date(2026,10,4,12,0,0);
+  const ok=TaskReminderService.plan(task('a','2026-11-04',D.PlanTaskStatus.PLANNED),now);
+  assert.equal(ok.ok,true);assert.equal(ok.data.getHours(),19);
+  assert.equal(TaskReminderService.plan(task('b','2026-11-04',D.PlanTaskStatus.PLANNED),now,11).ok,false);
+  assert.equal(TaskReminderService.plan(task('c','2026-11-05',D.PlanTaskStatus.COMPLETED),now).ok,false);
+  assert.equal(TaskReminderService.plan(task('d','2026-11-05',D.PlanTaskStatus.PLANNED),now,24).ok,false);
+  assert.match(TaskReminderService.content(task('e','2026-11-05',D.PlanTaskStatus.PLANNED,{participationOnly:true})),/不计 kg/);
  });
  console.log(`PASS ${checks} feature checks`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -24,6 +24,10 @@ export interface EntryParams {
   category: string;
   /** 若从计划任务进入，完成后回写关联并发放参与奖励 */
   planTaskId: string;
+  /** 从“拍照记一笔”进入：记录标为图片辅助填写，数量仍须用户填写 */
+  imageAssisted?: boolean;
+  /** 识别结果与需补齐事项，仅作提示展示，不写入数量 */
+  imageHint?: string;
 }
 
 /** 凭证页路由参数 */

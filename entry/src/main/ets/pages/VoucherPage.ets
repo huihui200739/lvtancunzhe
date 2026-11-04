@@ -12,7 +12,7 @@ import { ScenarioInput, ScenarioResult } from '../models/CalcModels';
 import { Result } from '../common/AppError';
 import { BaselineType, BehaviorCategory, RecordStatus, SCOPE_STATEMENT, ScenarioRole, categoryName, gasUnitLabel } from '../common/Domain';
 import { NumUtil, DateUtil } from '../common/Format';
-import { LocalMockBenefitService, MockBenefitReceipt } from '../services/LocalMockBenefitService';
+import { MockBenefitPlatform, MockTransfer } from '../services/MockBenefitPlatform';
 
 /**
  * 凭证页（第 5.3 节字段顺序：行为 → 对照 → 计算 → 来源 → 范围 → 变更）。
@@ -36,7 +36,7 @@ struct VoucherPage {
   @State message: string = '';
   @State mockBusy: boolean = false;
   @State mockMessage: string = '';
-  @State mockReceipt: MockBenefitReceipt | null = null;
+  @State mockTransfer: MockTransfer | null = null;
 
   aboutToAppear(): void {
     const p = router.getParams() as VoucherParams;
@@ -54,13 +54,8 @@ struct VoucherPage {
       return;
     }
     this.view = res.data;
-    const decision = LocalMockBenefitService.evaluate(res.data);
-    if (decision.eligible) {
-      const prior = LocalMockBenefitService.query(decision.requestId);
-      this.mockReceipt = prior.ok ? prior.data : null;
-    } else {
-      this.mockReceipt = null;
-    }
+    const account = await MockBenefitPlatform.load(getContext(this));
+    this.mockTransfer = MockBenefitPlatform.findTransfer(account, res.data.record.recordId, res.data.record.revision);
     this.reviseQty = `${res.data.record.quantity}`;
     this.reviseDate = res.data.record.occurredAt;
     for (const scenario of res.data.scenarios) {
@@ -195,58 +190,44 @@ struct VoucherPage {
   }
 
   private canRunMock(): boolean {
-    return this.view !== null && LocalMockBenefitService.evaluate(this.view).eligible;
+    return this.view !== null && MockBenefitPlatform.ineligibleReason(this.view).length === 0;
   }
 
   private mockEligibilityText(): string {
     if (this.view === null) { return ''; }
-    const decision = LocalMockBenefitService.evaluate(this.view);
-    return decision.eligible ? `符合本地接口演练条件 · ${NumUtil.show(decision.amountKg)} ${gasUnitLabel(this.view.snapshot.gasScope)}` : `当前凭证暂不能演练：${decision.reason}`;
+    const reason = MockBenefitPlatform.ineligibleReason(this.view);
+    if (reason.length > 0) { return `这张凭证不能转存：${reason}`; }
+    return `可转存 ${NumUtil.show(this.view.snapshot.reductionKg)} ${gasUnitLabel(this.view.snapshot.gasScope)}，约 ${MockBenefitPlatform.creditsFor(this.view.snapshot.reductionKg)} 个模拟积分`;
   }
 
   private async runMockSubmission(): Promise<void> {
     if (this.mockBusy || this.view === null) { return; }
-    const decision = LocalMockBenefitService.evaluate(this.view);
-    if (!decision.eligible) { this.mockMessage = decision.reason; return; }
+    const reason = MockBenefitPlatform.ineligibleReason(this.view);
+    if (reason.length > 0) { this.mockMessage = reason; return; }
     const confirm = await promptAction.showDialog({
-      title: '本地接口演练',
-      message: `按当前凭证生成一份内存模拟回执，金额 ${NumUtil.show(this.view.snapshot.reductionKg)} ${gasUnitLabel(this.view.snapshot.gasScope)}。不会联网，也不写入账本或积分。`,
+      title: '转存到碳普惠平台（模拟）',
+      message: `把这张凭证的 ${NumUtil.show(this.view.snapshot.reductionKg)} ${gasUnitLabel(this.view.snapshot.gasScope)} 转存到模拟平台，换成 ${MockBenefitPlatform.creditsFor(this.view.snapshot.reductionKg)} 个模拟积分。不会联网，存折账本和应用积分不变。`,
       buttons: [
         { text: '取消', color: Theme.muted },
-        { text: '开始模拟', color: Theme.green }
+        { text: '转存', color: Theme.green }
       ]
     });
     if (confirm.index !== 1) { return; }
     this.mockBusy = true;
     this.mockMessage = '';
     try {
-      const submitted = LocalMockBenefitService.submit(this.view, DateUtil.toDateTime(new Date()));
-      if (!submitted.ok || submitted.data === null) {
-        this.mockMessage = submitted.message;
+      const res = await MockBenefitPlatform.transfer(getContext(this), this.view);
+      if (!res.ok || res.data === null) {
+        this.mockMessage = res.message;
         return;
       }
-      this.mockReceipt = submitted.data;
-      const queried = LocalMockBenefitService.query(submitted.data.requestId);
-      if (queried.ok && queried.data !== null) { this.mockReceipt = queried.data; }
-      this.mockMessage = '模拟提交与回执查询已完成；结果仅保留在本次应用进程内。';
+      this.mockTransfer = res.data;
+      this.mockMessage = '已转存到模拟平台。';
     } catch (e) {
-      this.mockMessage = `模拟演练失败：${(e as Error).message}`;
+      this.mockMessage = `模拟转存失败：${(e as Error).message}`;
     } finally {
       this.mockBusy = false;
     }
-  }
-
-  private queryMockReceipt(): void {
-    if (this.view === null) { return; }
-    const decision = LocalMockBenefitService.evaluate(this.view);
-    const queried = LocalMockBenefitService.query(decision.requestId);
-    if (!queried.ok || queried.data === null) {
-      this.mockMessage = queried.message;
-      this.mockReceipt = null;
-      return;
-    }
-    this.mockReceipt = queried.data;
-    this.mockMessage = '已查询本次运行中的本地模拟回执。';
   }
 
   build() {
@@ -347,25 +328,25 @@ struct VoucherPage {
               }, (f: VoucherFactorSource, i: number) => `${this.revision}-${i}-${f.factorCode}`)
             }
             Text(this.view.snapshot.scopeNote).fontSize(11).lineHeight(21).fontColor(Theme.muted).width('100%').margin({ top: 22 })
-            SectionHeading({ title: '校园碳普惠接口演练', detail: '离线模拟' })
-            Notice({ text: '仅用当前凭证演练本地请求与回执；不会联网、提交真实平台、写入账本或发放积分。模拟回执仅保留在本次应用进程内，不是经核证碳资产。', warning: true })
-              .margin({ top: 4, bottom: 10 })
-            Text(this.mockEligibilityText()).fontSize(12).lineHeight(19)
-              .fontColor(this.canRunMock() ? Theme.green : Theme.rust).width('100%')
-            Button(this.mockBusy ? '正在模拟…' : '模拟提交并查询回执').height(46).fontSize(13).width('100%')
-              .backgroundColor(Theme.green).enabled(this.canRunMock() && !this.mockBusy)
-              .margin({ top: 10 }).onClick(() => this.runMockSubmission())
-            if (this.mockReceipt !== null) {
-              Column({ space: 8 }) {
-                Text(this.mockReceipt.platformName).fontSize(13).fontWeight(FontWeight.Medium).fontColor(Theme.ink).width('100%')
-                Text(`状态：${this.mockReceipt.status} · ${NumUtil.show(this.mockReceipt.amountKg)} ${this.mockReceipt.unit}`)
-                  .fontSize(12).lineHeight(19).fontColor(Theme.green).width('100%')
-                Text(`本地请求编号：${this.mockReceipt.requestId}\n模拟时间：${this.mockReceipt.createdAt}\n${this.mockReceipt.notice}`)
-                  .fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%')
-                Button('重新查询模拟回执').height(40).fontSize(12).fontColor(Theme.green).backgroundColor(Theme.sage)
-                  .onClick(() => this.queryMockReceipt())
-              }.width('100%').padding(16).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius).margin({ top: 10 })
+            SectionHeading({ title: '转存到碳普惠平台', detail: '模拟 · 不联网' })
+            if (this.mockTransfer !== null) {
+              Row({ space: 12 }) {
+                Column({ space: 4 }) {
+                  Text(`已转存 · ${this.mockTransfer!.requestId}`).fontSize(13).fontColor(Theme.ink)
+                  Text(`${this.mockTransfer!.createdAt} · +${this.mockTransfer!.credits} 模拟积分`).fontSize(11).fontColor(Theme.muted)
+                }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+                Seal({ label: '转', sealSize: 34, angle: -8, color: '#3B63E0' })
+              }.width('100%').padding(16).backgroundColor(Theme.paper).borderRadius(Theme.cardRadius)
+            } else {
+              Text(this.mockEligibilityText()).fontSize(12).lineHeight(19)
+                .fontColor(this.canRunMock() ? Theme.ink : Theme.rust).width('100%')
+              Button(this.mockBusy ? '正在转存…' : '转存到碳普惠平台（模拟）').height(46).fontSize(13).width('100%')
+                .backgroundColor(Theme.green).enabled(this.canRunMock() && !this.mockBusy)
+                .margin({ top: 10 }).onClick(() => this.runMockSubmission())
             }
+            Text('查看模拟平台与权益 →').fontSize(12).fontColor(Theme.ink).padding({ top: 12, bottom: 4 })
+              .onClick(() => router.pushUrl({ url: 'pages/BenefitPage' }))
+            Text(MockBenefitPlatform.NOTICE).fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%')
             if (this.mockMessage.length > 0) { Notice({ text: this.mockMessage }).margin({ top: 10 }) }
             if (this.view.record.status === RecordStatus.ACTIVE && this.view.isLatest) {
               if (this.revising) {

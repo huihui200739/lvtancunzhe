@@ -1,12 +1,14 @@
 import { promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { Theme } from '../common/Theme';
+import { common } from '@kit.AbilityKit';
 import { AppIcon, PageIntro, SectionHeading, Notice, EmptyState, SubpageHeader } from '../components/DesignSystem';
 import { router } from '@kit.ArkUI';
 import { LedgerDb } from '../services/LedgerDb';
 import { AppService } from '../services/AppService';
 import { PlanService } from '../services/PlanService';
 import { ActionCoachService, ActionRecommendation } from '../services/ActionCoachService';
+import { TaskReminderService, TaskReminder } from '../services/TaskReminderService';
 import { PlanDraftState } from '../services/PlanDraftState';
 import { QuantityField } from './QuantityField';
 import { PlanConstraints, PlanOutcome, PlanTask } from '../models/PlanModels';
@@ -71,6 +73,8 @@ export struct PlanTab {
   @State aiSuggestion: AiSuggestionView | null = null;
   @State aiNoteBusy: boolean = false;
   @State aiMessage: string = '';
+  @State reminders: TaskReminder[] = [];
+  @State reminderMessage: string = '';
 
   private catOptions: KeyLabel[] = [
     { key: 'travel', label: '出行' },
@@ -89,6 +93,7 @@ export struct PlanTab {
 
   aboutToAppear(): void {
     this.loadLatest();
+    TaskReminderService.list(getContext(this)).then((items: TaskReminder[]) => { this.reminders = items; });
     AiConfigStore.load(getContext(this)).then((config: AiConfig) => { this.aiConfig = config; });
   }
 
@@ -280,10 +285,37 @@ export struct PlanTab {
           : `${categoryName(action.category as BehaviorCategory)} · 预计 ${NumUtil.show(action.expectedKg)} ${this.planUnit()} · 额外 ${action.extraMinutes} 分钟`)
           .fontSize(11).lineHeight(17).fontColor(Theme.muted).width('100%')
       }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-      Text(action.isToday ? '今天' : action.day.substring(5)).fontSize(11).fontColor(Theme.green).flexShrink(0)
+      Column({ space: 6 }) {
+        Text(action.isToday ? '今天' : action.day.substring(5)).fontSize(11).fontColor(Theme.green)
+        Text(this.reminderOf(action.planTaskId) !== null ? `已入日历 ${this.reminderOf(action.planTaskId)!.hour}:00` : '加入日历')
+          .fontSize(11).fontColor(this.reminderOf(action.planTaskId) !== null ? Theme.rust : Theme.ink)
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 }).borderRadius(12)
+          .border({ width: 1, color: this.reminderOf(action.planTaskId) !== null ? Theme.rust : '#D6D4CC' })
+          .accessibilityText(this.reminderOf(action.planTaskId) !== null ? '已加入系统日历，再点可重新添加' : '把这项任务加入系统日历并提醒')
+          .onClick(() => this.toggleReminder(action))
+      }.alignItems(HorizontalAlign.End).flexShrink(0)
     }
     .width('100%').padding({ top: 14, bottom: 14 }).alignItems(VerticalAlign.Top)
     .onClick(() => this.openActionRecommendation(action))
+  }
+
+  private reminderOf(planTaskId: string): TaskReminder | null {
+    const found = this.reminders.find((r: TaskReminder) => r.planTaskId === planTaskId);
+    return found !== undefined ? found : null;
+  }
+
+  /** 打开系统日历新建页，预填任务当天 19:00；用户在日历里确认保存后由日历提醒 */
+  private async toggleReminder(action: ActionRecommendation): Promise<void> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const task = this.outcome.tasks.find((t: PlanTask) => t.planTaskId === action.planTaskId);
+    if (task === undefined) {
+      return;
+    }
+    const res = await TaskReminderService.schedule(context, task);
+    this.reminders = await TaskReminderService.list(context);
+    this.reminderMessage = res.ok && res.data !== null
+      ? `已加入系统日历：${res.data.day} ${res.data.hour}:00「${res.data.title}」，到时由日历提醒，应用关闭也会提醒。`
+      : res.message;
   }
 
   build() {
@@ -398,8 +430,9 @@ export struct PlanTab {
               Text('今天先做').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink).layoutWeight(1)
               Text('来自已保存计划').fontSize(11).fontColor(Theme.muted)
             }.width('100%')
-            Text('只列出今日起七天内未完成的任务；点开后由你确认记录。')
+            Text('只列出今日起七天内未完成的任务；点开后由你确认记录。点「加入日历」可把任务放进系统日历，当天 19:00 提醒。')
               .fontSize(11).lineHeight(18).fontColor(Theme.muted).width('100%').margin({ bottom: 4 })
+            if (this.reminderMessage.length > 0) { Notice({ text: this.reminderMessage }).margin({ bottom: 6 }) }
             if (this.actionRecommendations().length > 0) {
               ForEach(this.actionRecommendations(), (action: ActionRecommendation) => {
                 this.actionRecommendationRow(action);

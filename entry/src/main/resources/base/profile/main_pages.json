@@ -5,6 +5,9 @@
     "pages/VoucherPage",
     "pages/CertificatePage",
     "pages/ParticipationPage",
-    "pages/AiSettingsPage"
+    "pages/AiSettingsPage",
+    "pages/PhotoAssistPage",
+    "pages/BenefitPage",
+    "pages/ShareCardPage"
   ]
 }

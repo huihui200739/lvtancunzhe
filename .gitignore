@@ -34,3 +34,5 @@ signature/
 # Local audit history is preserved on disk; only curated team docs are published.
 /docs/*
 !/docs/team/
+# On-device model is fetched locally (see entry/src/main/resources/rawfile/model/README.txt)
+entry/src/main/resources/rawfile/model/*.ms
