@@ -2,6 +2,8 @@
 
 面向校园日常的 OpenHarmony 离线低碳记录应用。当前协作候选 **1.2.0 / schema 2**。
 
+[下载 1.2.0 团队试用包（API 24 / 26）](https://github.com/huihui200739/lvtancunzhe/releases/tag/v1.2.0-team)。均为 release、未签名；成员试用请选择独立 QA 包，安装与签名要求见[成员指南](docs/team/试用指南.md)。
+
 两个主要亮点是**可追溯的减排凭证**和**可解释的七日行动计划**。1.2.0 在此基础上新增：
 
 - **拍照记一笔**：端侧 MindSpore Lite 图像分类，只建议该填哪张存入单，数量仍由用户填写；
